@@ -89,6 +89,33 @@ export const authService = {
     const token = localStorage.getItem('token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   },
+  
+  // Obtém o ID da sessão do usuário, seja do token JWT ou gera um temporário
+  getSessionId: () => {
+    const token = localStorage.getItem('token');
+    
+    if (token) {
+      try {
+        // Tenta extrair informações do token (JWT format: header.payload.signature)
+        const payload = token.split('.')[1];
+        const decoded = JSON.parse(atob(payload));
+        
+        // Retorna o ID do usuário ou subject do token
+        return decoded.sub || decoded.userId || decoded.user_id || decoded.id || 'user';
+      } catch (error) {
+        console.error('Erro ao decodificar token:', error);
+      }
+    }
+    
+    // Se não tiver token ou falhar ao decodificar, usa um ID de sessão do localStorage ou cria um novo
+    let sessionId = localStorage.getItem('session_id');
+    if (!sessionId) {
+      sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      localStorage.setItem('session_id', sessionId);
+    }
+    
+    return sessionId;
+  },
 };
 
 export default authService; 

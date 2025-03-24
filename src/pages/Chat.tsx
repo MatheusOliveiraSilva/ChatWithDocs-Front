@@ -2,9 +2,11 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import conversationService, { Conversation, Message } from '../services/conversationService';
 import authService from '../services/authService';
+import agentService, { LLMConfig, DEFAULT_LLM_CONFIG } from '../services/agentService';
 import ConversationSidebar from '../components/ConversationSidebar';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
+import ModelConfigPanel from '../components/ModelConfigPanel';
 import '../styles/Chat.css';
 
 const Chat = () => {
@@ -13,6 +15,8 @@ const Chat = () => {
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [llmConfig, setLLMConfig] = useState<LLMConfig>(DEFAULT_LLM_CONFIG);
+  const [isConfigPanelExpanded, setIsConfigPanelExpanded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -110,6 +114,7 @@ const Chat = () => {
   const handleSendMessage = async (content: string) => {
     if (!content.trim()) return;
 
+    // Apenas atualizamos o estado local temporariamente para feedback imediato ao usuário
     const userMessage: Message = { role: 'user', content };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
@@ -117,73 +122,120 @@ const Chat = () => {
 
     try {
       if (!activeConversation) {
-        // Create a new conversation
+        // Nova conversa - primeiro gera um thread ID e nome
         const threadId = conversationService.generateThreadId();
         const threadName = conversationService.generateThreadName(content);
         
-        const newConversation = await conversationService.createConversation(
+        // Invoca o agente diretamente com a mensagem do usuário
+        // Não criamos a conversa ainda - isso será feito pelo backend após a resposta
+        const agentResponse = await agentService.invokeAgent(
           threadId,
-          threadName,
-          content
+          content,
+          llmConfig
         );
         
-        // Add assistant's response
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: `I received your message: "${content}". How can I help you further?`
-        };
-        
-        const updatedMessages = [...newMessages, assistantMessage];
-        setMessages(updatedMessages);
-        
-        // Update conversation with the assistant response
-        const updatedConversation = await conversationService.updateConversation(
-          newConversation.thread_id,
-          updatedMessages
-        );
-        
-        setActiveConversation(updatedConversation);
-        
-        // Update the conversations list
-        setConversations(prevConversations => [updatedConversation, ...prevConversations]);
+        if (agentResponse.updated_conversation) {
+          // Atualizamos com os dados do backend para garantir consistência
+          const updatedConversation: Conversation = {
+            id: agentResponse.updated_conversation.id,
+            user_id: 0, // Será definido pelo backend
+            thread_id: agentResponse.updated_conversation.thread_id,
+            thread_name: threadName, // Mantém o nome gerado inicialmente
+            messages: agentResponse.updated_conversation.messages,
+            created_at: new Date().toISOString(),
+            last_used: agentResponse.updated_conversation.last_used
+          };
+          
+          setActiveConversation(updatedConversation);
+          
+          // Atualiza mensagens com base no que o servidor retornou
+          const updatedMessages = agentResponse.updated_conversation.messages.map(([role, content]) => ({
+            role: role as 'user' | 'assistant',
+            content
+          }));
+          
+          setMessages(updatedMessages);
+          
+          // Atualiza a lista de conversas
+          setConversations(prevConversations => {
+            const updatedConv: Conversation = {
+              id: agentResponse.updated_conversation.id,
+              user_id: 0,
+              thread_id: agentResponse.updated_conversation.thread_id,
+              thread_name: threadName,
+              messages: agentResponse.updated_conversation.messages,
+              created_at: new Date().toISOString(),
+              last_used: agentResponse.updated_conversation.last_used
+            };
+            
+            return [updatedConv, ...prevConversations];
+          });
+        }
       } else {
-        // Update existing conversation
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: `I received your message: "${content}". How can I help you further?`
-        };
-        
-        const updatedMessages = [...newMessages, assistantMessage];
-        setMessages(updatedMessages);
-        
-        const updatedConversation = await conversationService.updateConversation(
+        // Conversa existente - apenas invoca o agente
+        const agentResponse = await agentService.invokeAgent(
           activeConversation.thread_id,
-          updatedMessages
+          content,
+          llmConfig
         );
         
-        setActiveConversation(updatedConversation);
-        
-        // Update the conversation in the list
-        setConversations(prevConversations => {
-          const index = prevConversations.findIndex(
-            c => c.thread_id === activeConversation.thread_id
-          );
+        if (agentResponse.updated_conversation) {
+          // Atualiza conversa ativa
+          const updatedConversation: Conversation = {
+            id: agentResponse.updated_conversation.id,
+            user_id: activeConversation.user_id,
+            thread_id: agentResponse.updated_conversation.thread_id,
+            thread_name: activeConversation.thread_name,
+            messages: agentResponse.updated_conversation.messages,
+            created_at: activeConversation.created_at,
+            last_used: agentResponse.updated_conversation.last_used
+          };
           
-          if (index >= 0) {
-            const newList = [...prevConversations];
-            newList[index] = updatedConversation;
-            return newList;
-          }
+          setActiveConversation(updatedConversation);
           
-          return prevConversations;
-        });
+          // Atualiza mensagens com base no que o servidor retornou
+          const updatedMessages = agentResponse.updated_conversation.messages.map(([role, content]) => ({
+            role: role as 'user' | 'assistant',
+            content
+          }));
+          
+          setMessages(updatedMessages);
+          
+          // Atualiza a conversa na lista
+          setConversations(prevConversations => {
+            const index = prevConversations.findIndex(
+              c => c.thread_id === activeConversation.thread_id
+            );
+            
+            if (index >= 0) {
+              const newList = [...prevConversations];
+              
+              const updatedConv: Conversation = {
+                ...prevConversations[index],
+                messages: agentResponse.updated_conversation.messages,
+                last_used: agentResponse.updated_conversation.last_used
+              };
+              
+              newList[index] = updatedConv;
+              return newList;
+            }
+            
+            return prevConversations;
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to send message:', error);
+      // Remover a mensagem temporária em caso de erro
+      setMessages(messages);
       // You might want to show an error message to the user
     } finally {
       setSendingMessage(false);
     }
+  };
+
+  const handleModelConfigChange = (config: LLMConfig) => {
+    setLLMConfig(config);
   };
 
   const renderEmptyChat = () => {
@@ -219,9 +271,16 @@ const Chat = () => {
               <polyline points="16 17 21 12 16 7"></polyline>
               <line x1="21" y1="12" x2="9" y2="12"></line>
             </svg>
-            Sair
+            Sign Out
           </button>
         </div>
+        
+        <ModelConfigPanel
+          llmConfig={llmConfig}
+          onConfigChange={handleModelConfigChange}
+          isExpanded={isConfigPanelExpanded}
+          onToggleExpand={() => setIsConfigPanelExpanded(!isConfigPanelExpanded)}
+        />
         
         <div className="chat-messages">
           {messages.length > 0 ? (

@@ -141,7 +141,9 @@ const conversationService = {
 
   // Helper to generate a unique thread ID
   generateThreadId: (): string => {
-    return `thread-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const sessionId = authService.getSessionId() || 'anonymous';
+    const uuid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    return `${sessionId}-${uuid}`;
   },
 
   // Helper to generate a thread name from the first message
