@@ -1,37 +1,112 @@
-/* Styles for chat page (temporary) - Dark theme */
+/* Styles for chat page - Dark theme */
 .chat-container {
   display: flex;
-  justify-content: center;
-  align-items: center;
   height: 100vh;
   width: 100vw;
   background-color: #121212;
   font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
 }
 
-.chat-content {
-  background: #1e1e1e;
-  border-radius: 12px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
-  padding: 40px;
-  width: 100%;
-  max-width: 600px;
-  text-align: center;
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.chat-header {
+  padding: 15px 20px;
+  border-bottom: 1px solid #2d3748;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .chat-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  margin-bottom: 16px;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #E2E8F0;
+  margin: 0;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-color: #121212;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.chat-messages-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #718096;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.empty-chat-icon {
+  font-size: 3rem;
+  margin-bottom: 20px;
+  color: #4FD1C5;
+}
+
+.empty-chat-title {
+  font-size: 1.8rem;
+  font-weight: 700;
   background: linear-gradient(90deg, #4FD1C5 0%, #63B3ED 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  letter-spacing: -0.5px;
+  margin-bottom: 10px;
 }
 
-.chat-subtitle {
+.empty-chat-subtitle {
+  font-size: 1rem;
   color: #A0AEC0;
-  font-size: 1.1rem;
-  margin: 0;
+  max-width: 500px;
+  line-height: 1.5;
+}
+
+.chat-input-wrapper {
+  padding: 10px 20px 20px;
+  border-top: 1px solid #2d3748;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .chat-container {
+    flex-direction: column;
+  }
+  
+  .chat-header {
+    padding: 10px 15px;
+  }
+  
+  .chat-title {
+    font-size: 1.2rem;
+  }
+  
+  .chat-messages {
+    padding: 15px;
+  }
+  
+  .chat-input-wrapper {
+    padding: 10px 15px 15px;
+  }
+  
+  .empty-chat-title {
+    font-size: 1.5rem;
+  }
+  
+  .empty-chat-subtitle {
+    font-size: 0.9rem;
+  }
 } 
