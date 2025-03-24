@@ -43,6 +43,11 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleLogout = async () => {
+    await authService.logout();
+    navigate('/');
+  };
+
   const fetchConversations = async () => {
     try {
       setLoading(true);
@@ -77,6 +82,29 @@ const Chat = () => {
   const handleNewChat = () => {
     setActiveConversation(null);
     setMessages([]);
+  };
+
+  const handleDeleteConversation = async (threadId: string) => {
+    try {
+      setLoading(true);
+      await conversationService.deleteConversation(threadId);
+      
+      // Remove the conversation from the list
+      setConversations(prevConversations => 
+        prevConversations.filter(c => c.thread_id !== threadId)
+      );
+      
+      // If the active conversation was deleted, return to the new conversation state
+      if (activeConversation && activeConversation.thread_id === threadId) {
+        setActiveConversation(null);
+        setMessages([]);
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      setLoading(false);
+    }
   };
 
   const handleSendMessage = async (content: string) => {
@@ -177,6 +205,7 @@ const Chat = () => {
         activeThreadId={activeConversation?.thread_id || null}
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
+        onDeleteConversation={handleDeleteConversation}
       />
       
       <div className="chat-main">
@@ -184,6 +213,14 @@ const Chat = () => {
           <h1 className="chat-title">
             {activeConversation ? activeConversation.thread_name : 'New Chat'}
           </h1>
+          <button className="logout-button" onClick={handleLogout}>
+            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Sair
+          </button>
         </div>
         
         <div className="chat-messages">

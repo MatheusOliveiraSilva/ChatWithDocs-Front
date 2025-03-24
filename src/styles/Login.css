@@ -15,7 +15,7 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
   padding: 40px;
   width: 100%;
-  max-width: 400px;
+  max-width: 500px;
   text-align: center;
   transition: transform 0.3s ease;
 }
@@ -33,6 +33,14 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px;
+  white-space: nowrap;
+  overflow: visible;
+  max-width: 100%;
+  line-height: 1.2;
+  display: block;
+  text-align: center;
+  transform: scale(1);
+  transform-origin: center;
 }
 
 .login-subtitle {
@@ -63,4 +71,43 @@
 .login-button:active {
   transform: translateY(0);
   box-shadow: 0 2px 8px rgba(79, 209, 197, 0.15);
+}
+
+/* Adicionar estilos responsivos */
+@media (max-width: 540px) {
+  .login-title {
+    font-size: 2.2rem;
+  }
+  
+  .login-card {
+    padding: 35px 25px;
+    max-width: 440px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-title {
+    font-size: 2rem;
+  }
+  
+  .login-card {
+    padding: 30px 20px;
+    max-width: 400px;
+  }
+}
+
+@media (max-width: 400px) {
+  .login-title {
+    font-size: 1.8rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-title {
+    font-size: 1.6rem;
+  }
+  
+  .login-card {
+    padding: 25px 15px;
+  }
 } 

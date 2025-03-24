@@ -40,8 +40,8 @@ export const authService = {
     // Backend might be looking for a different parameter name
     const redirectUri = encodeURIComponent(`${FRONTEND_URL}/auth/callback`);
     
-    // Tenta com vários parâmetros de redirecionamento diferentes que o backend pode estar esperando
-    const loginUrl = `${API_URL}/auth/login?redirect_uri=${redirectUri}&callback=${redirectUri}&callback_url=${redirectUri}&returnTo=${redirectUri}&return_url=${redirectUri}`;
+    // Adicionado múltiplos parâmetros para forçar a tela de seleção de usuário
+    const loginUrl = `${API_URL}/auth/login?redirect_uri=${redirectUri}&callback=${redirectUri}&callback_url=${redirectUri}&returnTo=${redirectUri}&return_url=${redirectUri}&prompt=login&force_login=true&ui_locales=pt-BR`;
     
     console.log('Redirecting to:', loginUrl);
     window.location.href = loginUrl;
@@ -55,6 +55,11 @@ export const authService = {
     localStorage.removeItem('user');
     // Clear session storage as well
     sessionStorage.clear();
+    
+    // Clear specific cookies that might be causing auto-login
+    document.cookie = 'user_email=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'user_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    
     // Clear any cookies related to auth
     document.cookie.split(";").forEach(c => {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
@@ -64,8 +69,19 @@ export const authService = {
   },
 
   // Realiza o logout do usuário
-  logout: () => {
-    authService.clearAuth();
+  logout: async () => {
+    try {
+      // Primeiro, chama o endpoint de logout do backend para limpar cookies do servidor
+      await axios.get(`${API_URL}/auth/logout`, {
+        headers: authService.getAuthHeader(),
+        withCredentials: true
+      });
+    } catch (error) {
+      console.error('Erro ao fazer logout no servidor:', error);
+    } finally {
+      // Limpa dados locais mesmo se falhar no servidor
+      authService.clearAuth();
+    }
   },
 
   // Obtém o token de autenticação para requisições

@@ -117,6 +117,21 @@ const conversationService = {
     }
   },
 
+  // Delete a conversation
+  deleteConversation: async (threadId: string): Promise<boolean> => {
+    try {
+      await axios.delete(`${API_URL}/conversation/${threadId}`, {
+        headers: authService.getAuthHeader(),
+        withCredentials: true
+      });
+      
+      return true;
+    } catch (error) {
+      console.error(`Error deleting conversation ${threadId}:`, error);
+      throw error;
+    }
+  },
+
   // Helper to generate a unique thread ID
   generateThreadId: (): string => {
     return `thread-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;

@@ -31,6 +31,30 @@
   margin: 0;
 }
 
+.logout-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #2d3748;
+  color: #E2E8F0;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.logout-button:hover {
+  background-color: #4a5568;
+}
+
+.logout-button svg {
+  width: 16px;
+  height: 16px;
+}
+
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -108,5 +132,15 @@
   
   .empty-chat-subtitle {
     font-size: 0.9rem;
+  }
+  
+  .logout-button {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+  }
+  
+  .logout-button svg {
+    width: 14px;
+    height: 14px;
   }
 } 
