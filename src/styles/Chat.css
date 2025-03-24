@@ -1,0 +1,37 @@
+/* Styles for chat page (temporary) - Dark theme */
+.chat-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #121212;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.chat-content {
+  background: #1e1e1e;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  padding: 40px;
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
+}
+
+.chat-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 16px;
+  background: linear-gradient(90deg, #4FD1C5 0%, #63B3ED 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
+}
+
+.chat-subtitle {
+  color: #A0AEC0;
+  font-size: 1.1rem;
+  margin: 0;
+} 
