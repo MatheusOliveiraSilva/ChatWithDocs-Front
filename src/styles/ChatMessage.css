@@ -70,6 +70,21 @@
   word-break: break-word;
 }
 
+/* Estilo para mensagem em streaming */
+.message-streaming .message-text::after {
+  content: '▋';
+  display: inline-block;
+  color: #805AD5;
+  animation: cursor-blink 1s step-end infinite;
+  margin-left: 2px;
+}
+
+/* Animação de cursor */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 /* Responsive styles */
 @media (max-width: 768px) {
   .chat-message {

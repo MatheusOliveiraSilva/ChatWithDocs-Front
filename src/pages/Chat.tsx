@@ -126,110 +126,248 @@ const Chat = () => {
         const threadId = conversationService.generateThreadId();
         const threadName = conversationService.generateThreadName(content);
         
-        // Invoca o agente diretamente com a mensagem do usuário
-        // Não criamos a conversa ainda - isso será feito pelo backend após a resposta
-        const agentResponse = await agentService.invokeAgent(
+        // Variável para armazenar o estado da resposta parcial
+        let streamingMessage: Message = { role: 'assistant', content: '' };
+        // Adicionar mensagem vazia do assistente para começar o streaming
+        setMessages([...newMessages, streamingMessage]);
+        
+        console.log('Iniciando streaming para nova conversa:', threadId);
+        
+        // Usar o streaming para receber a resposta em tempo real
+        agentService.streamAgent(
           threadId,
           content,
-          llmConfig
-        );
-        
-        if (agentResponse.updated_conversation) {
-          // Atualizamos com os dados do backend para garantir consistência
-          const updatedConversation: Conversation = {
-            id: agentResponse.updated_conversation.id,
-            user_id: 0, // Será definido pelo backend
-            thread_id: agentResponse.updated_conversation.thread_id,
-            thread_name: threadName, // Mantém o nome gerado inicialmente
-            messages: agentResponse.updated_conversation.messages,
-            created_at: new Date().toISOString(),
-            last_used: agentResponse.updated_conversation.last_used
-          };
-          
-          setActiveConversation(updatedConversation);
-          
-          // Atualiza mensagens com base no que o servidor retornou
-          const updatedMessages = agentResponse.updated_conversation.messages.map(([role, content]) => ({
-            role: role as 'user' | 'assistant',
-            content
-          }));
-          
-          setMessages(updatedMessages);
-          
-          // Atualiza a lista de conversas
-          setConversations(prevConversations => {
-            const updatedConv: Conversation = {
-              id: agentResponse.updated_conversation.id,
-              user_id: 0,
-              thread_id: agentResponse.updated_conversation.thread_id,
-              thread_name: threadName,
-              messages: agentResponse.updated_conversation.messages,
-              created_at: new Date().toISOString(),
-              last_used: agentResponse.updated_conversation.last_used
-            };
+          llmConfig,
+          // Callback para cada chunk recebido
+          (chunk) => {
+            console.log('Chunk recebido:', chunk.substring(0, 20) + '...');
+            // Atualizar a mensagem do assistente com o novo conteúdo
+            streamingMessage.content += chunk;
+            // Atualizar a UI com a mensagem parcial
+            setMessages([...newMessages, { ...streamingMessage }]);
+            // Rolar para o final
+            scrollToBottom();
+          },
+          // Callback quando o streaming estiver completo
+          async (fullResponse) => {
+            console.log('Streaming completo, resposta total:', fullResponse.substring(0, 30) + '...');
             
-            return [updatedConv, ...prevConversations];
-          });
-        }
-      } else {
-        // Conversa existente - apenas invoca o agente
-        const agentResponse = await agentService.invokeAgent(
-          activeConversation.thread_id,
-          content,
-          llmConfig
-        );
-        
-        if (agentResponse.updated_conversation) {
-          // Atualiza conversa ativa
-          const updatedConversation: Conversation = {
-            id: agentResponse.updated_conversation.id,
-            user_id: activeConversation.user_id,
-            thread_id: agentResponse.updated_conversation.thread_id,
-            thread_name: activeConversation.thread_name,
-            messages: agentResponse.updated_conversation.messages,
-            created_at: activeConversation.created_at,
-            last_used: agentResponse.updated_conversation.last_used
-          };
-          
-          setActiveConversation(updatedConversation);
-          
-          // Atualiza mensagens com base no que o servidor retornou
-          const updatedMessages = agentResponse.updated_conversation.messages.map(([role, content]) => ({
-            role: role as 'user' | 'assistant',
-            content
-          }));
-          
-          setMessages(updatedMessages);
-          
-          // Atualiza a conversa na lista
-          setConversations(prevConversations => {
-            const index = prevConversations.findIndex(
-              c => c.thread_id === activeConversation.thread_id
-            );
+            // Primeiro, garantir que a resposta completa está visível na UI
+            const completeMessages: Message[] = [
+              ...newMessages,
+              { role: 'assistant' as const, content: fullResponse }
+            ];
+            setMessages(completeMessages);
             
-            if (index >= 0) {
-              const newList = [...prevConversations];
+            // Tentar salvar a conversa e atualizar o estado só depois
+            try {
+              console.log('Tentando salvar conversa no banco de dados...');
               
-              const updatedConv: Conversation = {
-                ...prevConversations[index],
-                messages: agentResponse.updated_conversation.messages,
-                last_used: agentResponse.updated_conversation.last_used
+              // 1. Criar a conversa com a mensagem do usuário
+              console.log('Criando nova conversa com a primeira mensagem do usuário');
+              await conversationService.createConversation(threadId, threadName, content);
+              
+              // 2. Atualizar a conversa com ambas as mensagens
+              console.log('Adicionando a resposta do assistente à conversa');
+              const messageArray = completeMessages.map(msg => [msg.role, msg.content] as [string, string]);
+              await conversationService.updateConversation(threadId, completeMessages);
+              
+              // 3. Buscar a conversa completa
+              console.log('Buscando a conversa atualizada do servidor');
+              const conversation = await conversationService.getConversation(threadId);
+              console.log('Conversa recuperada:', conversation);
+              
+              if (conversation) {
+                // Atualizar a conversa ativa com os dados do servidor
+                setActiveConversation(conversation);
+                
+                // Atualizar a lista de conversas
+                setConversations(prevConversations => {
+                  return [conversation, ...prevConversations];
+                });
+              }
+            } catch (error) {
+              console.error('Erro ao salvar conversa:', error);
+              
+              // Mesmo com erro, a conversa continua visível na UI
+              // Criamos um objeto local para representar a conversa
+              const localConversation: Conversation = {
+                id: 0, // temporário
+                user_id: 0, // temporário
+                thread_id: threadId,
+                thread_name: threadName,
+                messages: completeMessages.map(msg => [msg.role, msg.content] as [string, string]),
+                created_at: new Date().toISOString(),
+                last_used: new Date().toISOString()
               };
               
-              newList[index] = updatedConv;
-              return newList;
+              setActiveConversation(localConversation);
+              setConversations(prev => [localConversation, ...prev]);
             }
             
-            return prevConversations;
-          });
-        }
+            // Finalizar o estado de envio
+            setSendingMessage(false);
+          },
+          // Callback em caso de erro
+          (error) => {
+            console.error('Erro durante o streaming:', error);
+            
+            // Mesmo com erro no streaming, manter a mensagem parcial se existir
+            if (streamingMessage.content) {
+              console.log('Mantendo mensagem parcial após erro:', streamingMessage.content.substring(0, 30) + '...');
+              setMessages([...newMessages, { ...streamingMessage }]);
+            } else {
+              // Se não tem conteúdo, remove a mensagem vazia do assistente
+              setMessages(newMessages);
+            }
+            
+            setSendingMessage(false);
+          },
+          // Parâmetros adicionais
+          threadName,  // Nome da conversa
+          {},  // memory_config vazio
+          undefined // Não há mensagens anteriores
+        );
+      } else {
+        // Conversa existente - usa streaming também
+        
+        // Variável para armazenar o estado da resposta parcial
+        let streamingMessage: Message = { role: 'assistant', content: '' };
+        // Adicionar mensagem vazia do assistente para começar o streaming
+        setMessages([...newMessages, streamingMessage]);
+        
+        // Preparar o histórico de mensagens para enviar ao backend
+        const messageHistory = activeConversation.messages.slice();
+        
+        console.log('Iniciando streaming para conversa existente:', activeConversation.thread_id);
+        console.log('Histórico de mensagens:', messageHistory.length, 'mensagens');
+        
+        // Usar o streaming para receber a resposta em tempo real
+        agentService.streamAgent(
+          activeConversation.thread_id,
+          content,
+          llmConfig,
+          // Callback para cada chunk recebido
+          (chunk) => {
+            console.log('Chunk recebido:', chunk.substring(0, 20) + '...');
+            // Atualizar a mensagem do assistente com o novo conteúdo
+            streamingMessage.content += chunk;
+            // Atualizar a UI com a mensagem parcial
+            setMessages([...newMessages, { ...streamingMessage }]);
+            // Rolar para o final
+            scrollToBottom();
+          },
+          // Callback quando o streaming estiver completo
+          async (fullResponse) => {
+            console.log('Streaming completo, resposta total:', fullResponse.substring(0, 30) + '...');
+            
+            // Primeiro, garantir que a resposta completa está visível na UI
+            const completeMessages: Message[] = [
+              ...newMessages,
+              { role: 'assistant' as const, content: fullResponse }
+            ];
+            setMessages(completeMessages);
+            
+            // Tentar salvar e atualizar o estado só depois
+            try {
+              console.log('Tentando atualizar conversa no banco de dados...');
+              
+              // Atualizar todas as mensagens da conversa
+              const allMessages = activeConversation.messages.concat([
+                ['user', content],
+                ['assistant', fullResponse]
+              ]);
+              
+              // Atualizar a conversa com a nova mensagem e resposta
+              console.log('Atualizando conversa com as novas mensagens');
+              await conversationService.updateConversation(
+                activeConversation.thread_id, 
+                completeMessages
+              );
+              
+              // Buscar a conversa atualizada
+              console.log('Buscando a conversa atualizada do servidor');
+              const conversation = await conversationService.getConversation(activeConversation.thread_id);
+              console.log('Conversa recuperada:', conversation);
+              
+              if (conversation) {
+                // Atualizar a conversa ativa com os dados do servidor
+                setActiveConversation(conversation);
+                
+                // Atualizar a conversa na lista
+                setConversations(prevConversations => {
+                  const index = prevConversations.findIndex(
+                    c => c.thread_id === activeConversation.thread_id
+                  );
+                  
+                  if (index >= 0) {
+                    const newList = [...prevConversations];
+                    newList[index] = conversation;
+                    return newList;
+                  }
+                  
+                  return prevConversations;
+                });
+              }
+            } catch (error) {
+              console.error('Erro ao atualizar conversa:', error);
+              
+              // Mesmo com erro, a conversa continua visível na UI
+              // Atualizamos o objeto local da conversa
+              const updatedLocalConversation = {
+                ...activeConversation,
+                messages: [...activeConversation.messages, 
+                          ['user', content] as [string, string], 
+                          ['assistant', fullResponse] as [string, string]],
+                last_used: new Date().toISOString()
+              };
+              
+              setActiveConversation(updatedLocalConversation as Conversation);
+              
+              // Atualizar a conversa na lista localmente
+              setConversations(prevConversations => {
+                const index = prevConversations.findIndex(
+                  c => c.thread_id === activeConversation.thread_id
+                );
+                
+                if (index >= 0) {
+                  const newList = [...prevConversations];
+                  newList[index] = updatedLocalConversation;
+                  return newList;
+                }
+                
+                return prevConversations;
+              });
+            }
+            
+            // Finalizar o estado de envio
+            setSendingMessage(false);
+          },
+          // Callback em caso de erro
+          (error) => {
+            console.error('Erro durante o streaming:', error);
+            
+            // Mesmo com erro no streaming, manter a mensagem parcial se existir
+            if (streamingMessage.content) {
+              console.log('Mantendo mensagem parcial após erro:', streamingMessage.content.substring(0, 30) + '...');
+              setMessages([...newMessages, { ...streamingMessage }]);
+            } else {
+              // Se não tem conteúdo, remove a mensagem vazia do assistente
+              setMessages(newMessages);
+            }
+            
+            setSendingMessage(false);
+          },
+          // Parâmetros adicionais
+          undefined,  // threadName é undefined para conversas existentes
+          {},  // memory_config vazio
+          messageHistory  // Enviar o histórico de mensagens
+        );
       }
     } catch (error) {
       console.error('Failed to send message:', error);
       // Remover a mensagem temporária em caso de erro
       setMessages(messages);
-      // You might want to show an error message to the user
-    } finally {
       setSendingMessage(false);
     }
   };
@@ -286,7 +424,11 @@ const Chat = () => {
           {messages.length > 0 ? (
             <>
               {messages.map((message, index) => (
-                <ChatMessage key={index} message={message} />
+                <ChatMessage 
+                  key={index} 
+                  message={message} 
+                  isStreaming={sendingMessage && index === messages.length - 1 && message.role === 'assistant'}
+                />
               ))}
               <div ref={messagesEndRef} />
             </>

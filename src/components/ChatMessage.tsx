@@ -3,13 +3,14 @@ import '../styles/ChatMessage.css';
 
 interface ChatMessageProps {
   message: Message;
+  isStreaming?: boolean;
 }
 
-const ChatMessage = ({ message }: ChatMessageProps) => {
+const ChatMessage = ({ message, isStreaming = false }: ChatMessageProps) => {
   const isUser = message.role === 'user';
   
   return (
-    <div className={`chat-message ${isUser ? 'user-message' : 'assistant-message'}`}>
+    <div className={`chat-message ${isUser ? 'user-message' : 'assistant-message'} ${isStreaming ? 'message-streaming' : ''}`}>
       <div className="message-avatar">
         {isUser ? (
           <div className="user-avatar">U</div>

@@ -14,10 +14,16 @@ export interface LLMConfig {
   temperature?: number;
 }
 
+export interface MemoryConfig {
+  [key: string]: any;
+}
+
 export interface AgentRequest {
   thread_id: string;
-  message: string;
+  input: string;
+  thread_name?: string;
   llm_config: LLMConfig;
+  memory_config?: MemoryConfig;
 }
 
 export interface AgentResponse {
@@ -61,7 +67,9 @@ const agentService = {
   invokeAgent: async (
     threadId: string,
     message: string,
-    llmConfig: LLMConfig = DEFAULT_LLM_CONFIG
+    llmConfig: LLMConfig = DEFAULT_LLM_CONFIG,
+    threadName?: string,
+    memoryConfig: MemoryConfig = {}
   ): Promise<AgentResponse> => {
     try {
       // Primeiro verifica se a thread existe via conversation API
@@ -81,11 +89,13 @@ const agentService = {
       
       // Invoca o agente
       const response = await axios.post(
-        `${API_URL}/agent/chat`,
+        `${API_URL}/agent/chat/query_stream`,
         {
           thread_id: threadId,
-          message: message,
-          llm_config: llmConfig
+          input: message,
+          thread_name: threadName,
+          llm_config: llmConfig,
+          memory_config: memoryConfig
         },
         {
           headers: authService.getAuthHeader(),
@@ -104,6 +114,134 @@ const agentService = {
       console.error('Error invoking agent:', error);
       throw error;
     }
+  },
+  
+  // Invocar agente com streaming de resposta
+  streamAgent: (
+    threadId: string,
+    message: string,
+    llmConfig: LLMConfig = DEFAULT_LLM_CONFIG,
+    onChunk: (chunk: string) => void,
+    onComplete: (fullResponse: string) => void,
+    onError: (error: any) => void,
+    threadName?: string,
+    memoryConfig: MemoryConfig = {},
+    previousMessages?: [string, string][]
+  ) => {
+    // Criar corpo da requisição para o novo formato
+    const body = JSON.stringify({
+      input: message,
+      thread_id: threadId,
+      thread_name: threadName,
+      llm_config: llmConfig,
+      previous_messages: previousMessages  // Adicionando mensagens anteriores
+    });
+    
+    console.log(`Iniciando streaming para thread: ${threadId}`, {
+      threadName,
+      modelId: llmConfig.model_id,
+      provider: llmConfig.provider,
+      previousMessagesCount: previousMessages?.length || 0
+    });
+    
+    // Obter token de autenticação
+    const token = localStorage.getItem('token');
+    
+    // Conectar ao endpoint de streaming
+    let fullResponse = '';
+    
+    const fetchOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: body,
+      credentials: 'include' as RequestCredentials,
+    };
+    
+    fetch(`${API_URL}/agent/chat/query_stream`, fetchOptions)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        console.log('Conexão estabelecida, aguardando chunks...');
+        
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        
+        function processStream(): Promise<void> {
+          return reader.read().then(({ value, done }) => {
+            if (done) {
+              console.log('Stream finalizado, resposta completa:', fullResponse.substring(0, 30) + '...');
+              // Ao terminar, verificar se temos conteúdo válido
+              if (fullResponse.trim().length > 0) {
+                onComplete(fullResponse);
+              } else {
+                // Se não tiver conteúdo válido, tratar como erro
+                console.error('A resposta do servidor está vazia');
+                onError(new Error("A resposta do servidor está vazia"));
+              }
+              return;
+            }
+            
+            const chunk = decoder.decode(value);
+            console.log('Chunk bruto recebido:', chunk.substring(0, 50) + (chunk.length > 50 ? '...' : ''));
+            
+            const lines = chunk.split('\n\n');
+            
+            for (const line of lines) {
+              if (line.trim() && line.startsWith('data: ')) {
+                const jsonStr = line.replace('data: ', '');
+                try {
+                  const data = JSON.parse(jsonStr);
+                  console.log('Dados do streaming:', data);
+                  
+                  if (data.error) {
+                    console.error('Erro recebido do servidor:', data.error);
+                    onError(new Error(data.error));
+                    return;
+                  }
+                  
+                  if (data.content === '[DONE]') {
+                    console.log('Marcador de fim recebido, finalizando streaming');
+                    onComplete(fullResponse);
+                    return;
+                  }
+                  
+                  if (data.content) {
+                    console.log('Conteúdo recebido:', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
+                    fullResponse += data.content;
+                    onChunk(data.content);
+                  }
+                } catch (e) {
+                  console.warn('Failed to parse JSON:', jsonStr, e);
+                }
+              }
+            }
+            
+            return processStream();
+          })
+          .catch(error => {
+            console.error('Error processing stream:', error);
+            
+            // Se já temos algum conteúdo quando ocorrer o erro, retornar o que temos
+            if (fullResponse.trim().length > 0) {
+              console.log('Erro durante streaming, mas retornando resposta parcial:', fullResponse.substring(0, 30) + '...');
+              onComplete(fullResponse);
+            } else {
+              onError(error);
+            }
+          });
+        }
+        
+        return processStream();
+      })
+      .catch(error => {
+        console.error('Error in streaming, sem conexão:', error);
+        onError(error);
+      });
   }
 };
 
