@@ -6,7 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5005';
 
 // Types
 export interface Message {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'thought';
   content: string;
 }
 
@@ -27,7 +27,7 @@ const convertToMessageArray = (messages: Message[]): [string, string][] => {
 
 const convertToMessageObjects = (messages: [string, string][]): Message[] => {
   return messages.map(([role, content]) => ({ 
-    role: role as 'user' | 'assistant', 
+    role: role as 'user' | 'assistant' | 'thought', 
     content 
   }));
 };

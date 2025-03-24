@@ -38,7 +38,7 @@ const ModelConfigPanel = ({
   const isTemperatureFixed = () => {
     return config.model_id === 'o1' || 
            config.model_id === 'o3-mini' || 
-           config.model_id === 'claude-3-7-sonnet';
+           (config.model_id === 'claude-3-7-sonnet' && config.think_mode);
   };
   
   // Handle provider change
@@ -85,8 +85,14 @@ const ModelConfigPanel = ({
     }
     
     // Set fixed temperature for specific models
-    if (modelId === 'o1' || modelId === 'o3-mini' || modelId === 'claude-3-7-sonnet') {
+    if (modelId === 'o1' || modelId === 'o3-mini') {
       newConfig.temperature = 1.0;
+    } else if (modelId === 'claude-3-7-sonnet' && newConfig.think_mode) {
+      // Temperature fixed at 1.0 for Claude Sonnet with think_mode
+      newConfig.temperature = 1.0;
+    } else if (!isTemperatureFixed() && newConfig.temperature === 1.0) {
+      // Reset temperature to default if it was previously fixed
+      newConfig.temperature = DEFAULT_LLM_CONFIG.temperature;
     }
     
     setConfig(newConfig);
@@ -108,7 +114,15 @@ const ModelConfigPanel = ({
     // Only allow changes if think mode is enabled
     if (!isThinkModeEnabled()) return;
     
-    const newConfig = { ...config, think_mode: !config.think_mode };
+    const newThinkMode = !config.think_mode;
+    let newConfig = { ...config, think_mode: newThinkMode };
+    
+    // Se o modelo é Claude Sonnet e o think_mode está sendo ativado,
+    // fixe a temperatura em 1.0
+    if (config.model_id === 'claude-3-7-sonnet' && newThinkMode) {
+      newConfig.temperature = 1.0;
+    }
+    
     setConfig(newConfig);
     onConfigChange(newConfig);
   };
@@ -226,7 +240,13 @@ const ModelConfigPanel = ({
         )}
         
         <div className="config-section">
-          <label>Temperature: {isTemperatureFixed() ? '1.0 (Fixo)' : config.temperature?.toFixed(1)}</label>
+          <label>
+            Temperature: {isTemperatureFixed() 
+              ? config.model_id === 'claude-3-7-sonnet' && config.think_mode 
+                ? '1.0 (Fixo para Think Mode)' 
+                : '1.0 (Fixo)' 
+              : config.temperature?.toFixed(1)}
+          </label>
           <input 
             type="range" 
             min="0" 

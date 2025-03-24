@@ -17,6 +17,8 @@ const Chat = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [llmConfig, setLLMConfig] = useState<LLMConfig>(DEFAULT_LLM_CONFIG);
   const [isConfigPanelExpanded, setIsConfigPanelExpanded] = useState(false);
+  const [currentThinking, setCurrentThinking] = useState('');
+  const [isThinkingStreaming, setIsThinkingStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -119,6 +121,10 @@ const Chat = () => {
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setSendingMessage(true);
+    
+    // Limpar pensamento anterior
+    setCurrentThinking('');
+    setIsThinkingStreaming(false);
 
     try {
       if (!activeConversation) {
@@ -140,13 +146,29 @@ const Chat = () => {
           llmConfig,
           // Callback para cada chunk recebido
           (chunk) => {
-            console.log('Chunk recebido:', chunk.substring(0, 20) + '...');
-            // Atualizar a mensagem do assistente com o novo conteúdo
-            streamingMessage.content += chunk;
-            // Atualizar a UI com a mensagem parcial
-            setMessages([...newMessages, { ...streamingMessage }]);
-            // Rolar para o final
-            scrollToBottom();
+            // Processar diferentes tipos de chunks
+            if (chunk.type === 'thinking') {
+              // Atualizar o estado de pensamento
+              setIsThinkingStreaming(true);
+              setCurrentThinking(prev => prev + chunk.content);
+            } else if (chunk.type === 'text') {
+              // Finalizar o streaming de pensamentos, se houver
+              setIsThinkingStreaming(false);
+              
+              // Atualizar a mensagem do assistente com o novo conteúdo
+              streamingMessage.content += chunk.content;
+              // Atualizar a UI com a mensagem parcial
+              setMessages([...newMessages, { ...streamingMessage }]);
+              // Rolar para o final
+              scrollToBottom();
+            } else {
+              // Compatibilidade com o antigo formato
+              streamingMessage.content += chunk.content;
+              // Atualizar a UI com a mensagem parcial
+              setMessages([...newMessages, { ...streamingMessage }]);
+              // Rolar para o final
+              scrollToBottom();
+            }
           },
           // Callback quando o streaming estiver completo
           async (fullResponse) => {
@@ -157,6 +179,15 @@ const Chat = () => {
               ...newMessages,
               { role: 'assistant' as const, content: fullResponse }
             ];
+            
+            // Adicionar a mensagem de pensamento, se existir
+            if (currentThinking.trim()) {
+              completeMessages.splice(completeMessages.length - 1, 0, { 
+                role: 'thought' as const, 
+                content: currentThinking 
+              });
+            }
+            
             setMessages(completeMessages);
             
             // Tentar salvar a conversa e atualizar o estado só depois
@@ -167,9 +198,8 @@ const Chat = () => {
               console.log('Criando nova conversa com a primeira mensagem do usuário');
               await conversationService.createConversation(threadId, threadName, content);
               
-              // 2. Atualizar a conversa com ambas as mensagens
-              console.log('Adicionando a resposta do assistente à conversa');
-              const messageArray = completeMessages.map(msg => [msg.role, msg.content] as [string, string]);
+              // 2. Atualizar a conversa com todas as mensagens
+              console.log('Adicionando a resposta do assistente e pensamento à conversa');
               await conversationService.updateConversation(threadId, completeMessages);
               
               // 3. Buscar a conversa completa
@@ -249,13 +279,29 @@ const Chat = () => {
           llmConfig,
           // Callback para cada chunk recebido
           (chunk) => {
-            console.log('Chunk recebido:', chunk.substring(0, 20) + '...');
-            // Atualizar a mensagem do assistente com o novo conteúdo
-            streamingMessage.content += chunk;
-            // Atualizar a UI com a mensagem parcial
-            setMessages([...newMessages, { ...streamingMessage }]);
-            // Rolar para o final
-            scrollToBottom();
+            // Processar diferentes tipos de chunks
+            if (chunk.type === 'thinking') {
+              // Atualizar o estado de pensamento
+              setIsThinkingStreaming(true);
+              setCurrentThinking(prev => prev + chunk.content);
+            } else if (chunk.type === 'text') {
+              // Finalizar o streaming de pensamentos, se houver
+              setIsThinkingStreaming(false);
+              
+              // Atualizar a mensagem do assistente com o novo conteúdo
+              streamingMessage.content += chunk.content;
+              // Atualizar a UI com a mensagem parcial
+              setMessages([...newMessages, { ...streamingMessage }]);
+              // Rolar para o final
+              scrollToBottom();
+            } else {
+              // Compatibilidade com o antigo formato
+              streamingMessage.content += chunk.content;
+              // Atualizar a UI com a mensagem parcial
+              setMessages([...newMessages, { ...streamingMessage }]);
+              // Rolar para o final
+              scrollToBottom();
+            }
           },
           // Callback quando o streaming estiver completo
           async (fullResponse) => {
@@ -266,19 +312,22 @@ const Chat = () => {
               ...newMessages,
               { role: 'assistant' as const, content: fullResponse }
             ];
+            
+            // Adicionar a mensagem de pensamento, se existir
+            if (currentThinking.trim()) {
+              completeMessages.splice(completeMessages.length - 1, 0, { 
+                role: 'thought' as const, 
+                content: currentThinking 
+              });
+            }
+            
             setMessages(completeMessages);
             
             // Tentar salvar e atualizar o estado só depois
             try {
               console.log('Tentando atualizar conversa no banco de dados...');
               
-              // Atualizar todas as mensagens da conversa
-              const allMessages = activeConversation.messages.concat([
-                ['user', content],
-                ['assistant', fullResponse]
-              ]);
-              
-              // Atualizar a conversa com a nova mensagem e resposta
+              // Atualizar a conversa com a nova mensagem, pensamento e resposta
               console.log('Atualizando conversa com as novas mensagens');
               await conversationService.updateConversation(
                 activeConversation.thread_id, 
@@ -314,11 +363,15 @@ const Chat = () => {
               
               // Mesmo com erro, a conversa continua visível na UI
               // Atualizamos o objeto local da conversa
+              const updatedMessages = activeConversation.messages.concat([
+                ['user', content],
+                ['thought', currentThinking],
+                ['assistant', fullResponse]
+              ]);
+              
               const updatedLocalConversation = {
                 ...activeConversation,
-                messages: [...activeConversation.messages, 
-                          ['user', content] as [string, string], 
-                          ['assistant', fullResponse] as [string, string]],
+                messages: updatedMessages,
                 last_used: new Date().toISOString()
               };
               
@@ -428,6 +481,8 @@ const Chat = () => {
                   key={index} 
                   message={message} 
                   isStreaming={sendingMessage && index === messages.length - 1 && message.role === 'assistant'}
+                  thinking={index === messages.length - 1 && message.role === 'assistant' ? currentThinking : undefined}
+                  isThinkingStreaming={isThinkingStreaming}
                 />
               ))}
               <div ref={messagesEndRef} />

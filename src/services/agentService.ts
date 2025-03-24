@@ -37,6 +37,13 @@ export interface AgentResponse {
   }
 }
 
+// Interface para streaming de chunks de resposta
+export interface StreamedChunk {
+  content: string;
+  type: 'thinking' | 'text' | 'error' | 'end';
+  meta?: any;
+}
+
 // Available models by provider
 export const AVAILABLE_MODELS = {
   openai: [
@@ -72,6 +79,17 @@ const agentService = {
     memoryConfig: MemoryConfig = {}
   ): Promise<AgentResponse> => {
     try {
+      // Ajustar configuração conforme regras específicas dos modelos
+      const adjustedConfig = { ...llmConfig };
+      
+      // Para Claude Sonnet, quando think_mode está ativado, a temperatura deve ser 1
+      if (adjustedConfig.provider === 'anthropic' && 
+          adjustedConfig.model_id === 'claude-3-7-sonnet' && 
+          adjustedConfig.think_mode) {
+        console.log('Detectado Claude Sonnet com think_mode ativado, fixando temperatura em 1');
+        adjustedConfig.temperature = 1;
+      }
+    
       // Primeiro verifica se a thread existe via conversation API
       let threadExists = false;
       
@@ -94,7 +112,7 @@ const agentService = {
           thread_id: threadId,
           input: message,
           thread_name: threadName,
-          llm_config: llmConfig,
+          llm_config: adjustedConfig,
           memory_config: memoryConfig
         },
         {
@@ -121,26 +139,39 @@ const agentService = {
     threadId: string,
     message: string,
     llmConfig: LLMConfig = DEFAULT_LLM_CONFIG,
-    onChunk: (chunk: string) => void,
+    onChunk: (chunk: StreamedChunk) => void,
     onComplete: (fullResponse: string) => void,
     onError: (error: any) => void,
     threadName?: string,
     memoryConfig: MemoryConfig = {},
     previousMessages?: [string, string][]
   ) => {
+    // Ajustar configuração conforme regras específicas dos modelos
+    const adjustedConfig = { ...llmConfig };
+    
+    // Para Claude Sonnet, quando think_mode está ativado, a temperatura deve ser 1
+    if (adjustedConfig.provider === 'anthropic' && 
+        adjustedConfig.model_id === 'claude-3-7-sonnet' && 
+        adjustedConfig.think_mode) {
+      console.log('Detectado Claude Sonnet com think_mode ativado, fixando temperatura em 1');
+      adjustedConfig.temperature = 1;
+    }
+    
     // Criar corpo da requisição para o novo formato
     const body = JSON.stringify({
       input: message,
       thread_id: threadId,
       thread_name: threadName,
-      llm_config: llmConfig,
+      llm_config: adjustedConfig,
       previous_messages: previousMessages  // Adicionando mensagens anteriores
     });
     
     console.log(`Iniciando streaming para thread: ${threadId}`, {
       threadName,
-      modelId: llmConfig.model_id,
-      provider: llmConfig.provider,
+      modelId: adjustedConfig.model_id,
+      provider: adjustedConfig.provider,
+      thinkMode: adjustedConfig.think_mode,
+      temperature: adjustedConfig.temperature,
       previousMessagesCount: previousMessages?.length || 0
     });
     
@@ -149,6 +180,7 @@ const agentService = {
     
     // Conectar ao endpoint de streaming
     let fullResponse = '';
+    let currentThinking = ''; // Armazenar pensamentos para Claude 3.7 Sonnet
     
     const fetchOptions = {
       method: 'POST',
@@ -204,16 +236,46 @@ const agentService = {
                     return;
                   }
                   
-                  if (data.content === '[DONE]') {
+                  if (data.content === '[DONE]' || data.type === 'end') {
                     console.log('Marcador de fim recebido, finalizando streaming');
                     onComplete(fullResponse);
                     return;
                   }
                   
-                  if (data.content) {
-                    console.log('Conteúdo recebido:', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
+                  // Processar diferentes tipos de chunks
+                  if (data.type === 'thinking') {
+                    // Acumular pensamentos separadamente
+                    currentThinking += data.content;
+                    console.log('Pensamento recebido:', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
+                    
+                    // Notificar o chunk como thinking
+                    onChunk({
+                      content: data.content,
+                      type: 'thinking',
+                      meta: data.meta
+                    });
+                  } else if (data.type === 'text') {
+                    // Resposta final
+                    console.log('Texto final recebido:', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
                     fullResponse += data.content;
-                    onChunk(data.content);
+                    
+                    // Notificar o chunk como texto
+                    onChunk({
+                      content: data.content,
+                      type: 'text',
+                      meta: data.meta
+                    });
+                  } else if (data.content) {
+                    // Fallback para formatos antigos
+                    console.log('Conteúdo recebido (formato antigo):', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
+                    fullResponse += data.content;
+                    
+                    // Notificar como texto padrão
+                    onChunk({
+                      content: data.content,
+                      type: 'text',
+                      meta: data.meta
+                    });
                   }
                 } catch (e) {
                   console.warn('Failed to parse JSON:', jsonStr, e);
