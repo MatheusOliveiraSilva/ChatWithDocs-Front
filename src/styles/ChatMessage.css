@@ -197,11 +197,12 @@
   }
 }
 
-/* Estilos para o Claude Thinking Process */
+/* Estilos para o Claude Thinking Process do histórico */
 .thinking-container {
   margin-top: 8px;
   margin-bottom: 12px;
   width: 100%;
+  transition: all 0.3s ease;
 }
 
 .thinking-header {
@@ -216,6 +217,7 @@
   font-size: 0.85rem;
   font-weight: bold;
   color: #a0aec0;
+  transition: background-color 0.2s;
 }
 
 .thinking-header:hover {
@@ -236,7 +238,7 @@
   border: 1px solid #4a5568;
   border-top: none;
   border-radius: 0 0 6px 6px;
-  padding: 10px 12px;
+  padding: 0;
   font-family: monospace;
   white-space: pre-wrap;
   font-size: 0.85rem;
@@ -268,4 +270,4 @@
   color: #a0aec0;
   animation: cursor-blink 1s step-end infinite;
   margin-left: 2px;
-} 
+}

@@ -483,6 +483,8 @@ const Chat = () => {
                   isStreaming={sendingMessage && index === messages.length - 1 && message.role === 'assistant'}
                   thinking={index === messages.length - 1 && message.role === 'assistant' ? currentThinking : undefined}
                   isThinkingStreaming={isThinkingStreaming}
+                  previousMessage={index > 0 ? messages[index - 1] : null}
+                  nextMessage={index < messages.length - 1 ? messages[index + 1] : null}
                 />
               ))}
               <div ref={messagesEndRef} />
