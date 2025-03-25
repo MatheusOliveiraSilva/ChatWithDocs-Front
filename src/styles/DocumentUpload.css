@@ -1,29 +1,63 @@
-.document-upload-btn {
-  position: relative;
-  display: inline-flex;
+.document-upload-wrapper {
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  margin-right: 8px;
-  margin-left: 2px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #fff;
-  background-color: #1A202C;
+}
+
+.document-upload-btn {
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
+  background-color: #2d3748;
+  color: #f3f4f6;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin: 0 8px 0 2px;
+  padding: 0;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
 }
 
 .document-upload-btn:hover {
-  color: #fff;
   transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilo para modo claro */
+@media (prefers-color-scheme: light) {
+  .document-upload-btn {
+    background-color: #e5e7eb;
+    color: #4b5563;
+  }
+  
+  .document-upload-btn:hover {
+    background-color: #d1d5db;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .document-upload-btn {
+    background-color: #374151;
+    color: #f3f4f6;
+  }
+  
+  .document-upload-btn:hover {
+    background-color: #4b5563;
+  }
+}
+
+.document-upload-btn:active {
+  transform: translateY(0);
 }
 
 .document-upload-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .document-dropzone {
@@ -247,13 +281,16 @@
   height: 16px;
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
+/* Responsive styles */
+@media (max-width: 768px) {
   .document-upload-btn {
-    background-color: #2d3748;
+    width: 32px;
+    height: 32px;
+    margin: 0 4px 0 0;
   }
   
-  .document-upload-btn:hover {
-    background-color: #3a4a63;
+  .document-upload-icon {
+    width: 14px;
+    height: 14px;
   }
 } 

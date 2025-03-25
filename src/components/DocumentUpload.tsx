@@ -228,23 +228,28 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded }) =
   return (
     <>
       {/* Botão de upload */}
-      <button
-        className="document-upload-btn"
-        onClick={openDropzone}
-        title="Upload document"
-      >
-        <svg
-          className="document-upload-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      <div className="document-upload-wrapper">
+        <button
+          className="document-upload-btn"
+          onClick={openDropzone}
+          title="Upload document"
+          aria-label="Upload document"
         >
-          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.48-8.48l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-        </svg>
-      </button>
+          <svg 
+            className="document-upload-icon" 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          >
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.48-8.48l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+          </svg>
+        </button>
+      </div>
 
       {/* Input de arquivo oculto */}
       <input
