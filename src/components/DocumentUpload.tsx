@@ -84,10 +84,13 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
     };
   }, [isDropzoneOpen]);
 
-  // Buscar documentos enviados quando o componente montar
+  // Buscar documentos enviados quando o componente montar ou threadId mudar
   useEffect(() => {
     fetchUploadedDocuments();
-  }, []);
+    
+    // Limpar dados quando threadId muda
+    setUploadItems([]);
+  }, [threadId]);
 
   // Função para buscar documentos já enviados
   const fetchUploadedDocuments = async () => {
@@ -99,11 +102,14 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
         return;
       }
       
+      console.log(`Buscando documentos para thread_id: ${threadId}`);
       const response = await documentService.getConversationDocuments(threadId);
+      console.log(`Documentos encontrados:`, response.documents.length);
       setUploadedDocuments(response.documents);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching documents:', error);
+      setUploadedDocuments([]);
       setIsLoading(false);
     }
   };
@@ -111,6 +117,8 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
   // Função para abrir o dropzone
   const openDropzone = () => {
     setIsDropzoneOpen(true);
+    // Atualiza a lista de documentos quando o modal é aberto
+    fetchUploadedDocuments();
   };
 
   // Função para fechar o dropzone
@@ -128,6 +136,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
   // Função para processar os arquivos selecionados
   const handleFiles = (fileList: FileList) => {
     const files = Array.from(fileList);
+    console.log(`Processando ${files.length} arquivos para upload`);
     
     // Filtra arquivos muito grandes (limite de 50MB)
     const validFiles = files.filter(file => file.size <= 50 * 1024 * 1024);
@@ -139,13 +148,25 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
       alert(errorMessage);
     }
     
-    // Verifica se algum arquivo já está na lista de uploads
-    const newFilesToUpload = validFiles.filter(newFile => 
-      !uploadItems.some(item => 
+    // Verifica se algum arquivo já está na lista de uploads ativos
+    const newFilesToUpload = validFiles.filter(newFile => {
+      const isDuplicate = uploadItems.some(item => 
         item.file.name === newFile.name && 
-        item.file.size === newFile.size
-      )
-    );
+        item.file.size === newFile.size &&
+        (item.status === 'uploading' || item.status === 'pending')
+      );
+      
+      if (isDuplicate) {
+        console.log(`Arquivo duplicado detectado e ignorado: ${newFile.name}`);
+      }
+      return !isDuplicate;
+    });
+    
+    console.log(`Arquivos válidos para upload: ${newFilesToUpload.length}`);
+    
+    if (newFilesToUpload.length === 0) {
+      return; // Não há novos arquivos para upload
+    }
     
     // Cria novos itens de upload
     const newUploadItems = newFilesToUpload.map(file => ({
@@ -158,12 +179,18 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
     // Adiciona à lista de uploads
     setUploadItems(prevItems => [...prevItems, ...newUploadItems]);
     
-    // Inicia o upload automaticamente
-    newUploadItems.forEach(item => uploadFile(item));
+    // Inicia o upload automaticamente, um de cada vez
+    newUploadItems.forEach(item => {
+      console.log(`Iniciando upload para: ${item.file.name}`);
+      uploadFile(item);
+    });
   };
 
   // Função para fazer o upload de um arquivo
   const uploadFile = async (item: UploadItem) => {
+    // Defina progressInterval no escopo externo da função e inicialize como undefined
+    let progressInterval: NodeJS.Timeout | undefined = undefined;
+    
     try {
       // Atualiza o status para 'uploading'
       setUploadItems(items =>
@@ -171,7 +198,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
       );
       
       // Simula o progresso (já que a API não fornece feedback de progresso)
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setUploadItems(items =>
           items.map(i => {
             if (i.id === item.id && i.progress < 90) {
@@ -182,30 +209,43 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
         );
       }, 300);
       
-      // Envia o arquivo para a API com o thread_id
-      const response = await documentService.uploadDocument(item.file, threadId);
+      console.log(`Enviando arquivo para API: ${item.file.name}, threadId: ${threadId}`);
       
-      // Limpa o intervalo de progresso
-      clearInterval(progressInterval);
-      
-      // Atualiza o status para 'success'
-      setUploadItems(items =>
-        items.map(i =>
-          i.id === item.id
-            ? { ...i, progress: 100, status: 'success' as const, documentId: response.id }
-            : i
-        )
-      );
-      
-      // Atualiza a lista de documentos enviados
-      setUploadedDocuments(prev => [response, ...prev]);
-      
-      // Notifica o componente pai
-      if (onDocumentUploaded) {
-        onDocumentUploaded(response);
+      try {
+        // Envia o arquivo para a API com o thread_id
+        const response = await documentService.uploadDocument(item.file, threadId);
+        
+        // Limpa o intervalo de progresso
+        if (progressInterval) clearInterval(progressInterval);
+        
+        console.log(`Upload bem-sucedido para: ${item.file.name}, id: ${response.id}`);
+        
+        // Atualiza o status para 'success'
+        setUploadItems(items =>
+          items.map(i =>
+            i.id === item.id
+              ? { ...i, progress: 100, status: 'success' as const, documentId: response.id }
+              : i
+          )
+        );
+        
+        // Atualiza a lista de documentos enviados
+        fetchUploadedDocuments(); // Busca a lista atualizada do servidor
+        
+        // Notifica o componente pai
+        if (onDocumentUploaded) {
+          onDocumentUploaded(response);
+        }
+      } catch (error) {
+        // Captura erros específicos da API
+        console.error(`Erro durante upload para API: ${item.file.name}`, error);
+        throw error;
       }
     } catch (error) {
       console.error('Error uploading file:', error);
+      
+      // Limpa qualquer intervalo de progresso que possa existir
+      if (progressInterval) clearInterval(progressInterval);
       
       // Atualiza o status para 'error'
       setUploadItems(items =>
