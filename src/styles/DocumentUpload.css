@@ -3,22 +3,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
   margin-right: 8px;
+  margin-left: 2px;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #2563eb;
+  color: #fff;
+  background-color: #1A202C;
+  border-radius: 8px;
 }
 
 .document-upload-btn:hover {
-  color: #1d4ed8;
-  transform: scale(1.1);
+  color: #fff;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .document-upload-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .document-dropzone {
@@ -240,4 +245,15 @@
 .config-icon {
   width: 16px;
   height: 16px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .document-upload-btn {
+    background-color: #2d3748;
+  }
+  
+  .document-upload-btn:hover {
+    background-color: #3a4a63;
+  }
 } 
