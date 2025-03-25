@@ -497,17 +497,36 @@ const Chat = () => {
           // Adicionar uma mensagem temporária de upload
           const tempMessage: Message = {
             role: 'system',
-            content: `Fazendo upload do documento: ${file.name}...`
+            content: `Uploading document: ${file.name}...`
           };
           setMessages(prev => [...prev, tempMessage]);
           
+          // Gerar um thread_id se ainda não houver conversa ativa
+          let threadId = activeConversation?.thread_id;
+          if (!threadId) {
+            threadId = conversationService.generateThreadId();
+            const threadName = "Document Upload"; // Nome padrão para novas conversas
+            
+            // Criar nova conversa com mensagem de sistema
+            await conversationService.createConversation(threadId, threadName, "Started a new conversation with document upload.");
+            
+            // Buscar a conversa recém-criada
+            const conversation = await conversationService.getConversation(threadId);
+            setActiveConversation(conversation);
+            
+            // Atualizar a lista de conversas
+            setConversations(prevConversations => {
+              return [conversation, ...prevConversations];
+            });
+          }
+          
           // Fazer o upload do documento
-          const doc = await documentService.uploadDocument(file);
+          const doc = await documentService.uploadDocument(file, threadId);
           
           // Atualizar a mensagem com a confirmação
           const successMessage: Message = {
             role: 'system',
-            content: `Documento "${file.name}" enviado com sucesso! ID: ${doc.id}`
+            content: `Document "${file.name}" uploaded successfully! ID: ${doc.id}`
           };
           
           // Substituir a mensagem temporária pela mensagem de sucesso
@@ -522,12 +541,12 @@ const Chat = () => {
           
           scrollToBottom();
         } catch (error) {
-          console.error('Erro ao fazer upload:', error);
+          console.error('Error uploading file:', error);
           
           // Adicionar mensagem de erro
           const errorMessage: Message = {
             role: 'system',
-            content: `Erro ao fazer upload do documento ${file.name}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+            content: `Error uploading document ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
           };
           
           setMessages(prev => [...prev, errorMessage]);
@@ -593,6 +612,7 @@ const Chat = () => {
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={sendingMessage}
+          threadId={activeConversation?.thread_id || ''}
         />
       </div>
     </div>

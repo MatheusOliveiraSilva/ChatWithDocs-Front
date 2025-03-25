@@ -23,14 +23,16 @@ interface UploadedDocument {
 // Props do componente
 interface DocumentUploadProps {
   onDocumentUploaded?: (document: any) => void;
+  threadId: string;
 }
 
-const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded }) => {
+const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, threadId }) => {
   const [isDropzoneOpen, setIsDropzoneOpen] = useState(false);
   const [isDropping, setIsDropping] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
   const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isDocumentListExpanded, setIsDocumentListExpanded] = useState(false);
   const dropzoneRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -91,7 +93,13 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded }) =
   const fetchUploadedDocuments = async () => {
     try {
       setIsLoading(true);
-      const response = await documentService.getDocuments();
+      if (!threadId) {
+        setUploadedDocuments([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      const response = await documentService.getConversationDocuments(threadId);
       setUploadedDocuments(response.documents);
       setIsLoading(false);
     } catch (error) {
@@ -131,8 +139,16 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded }) =
       alert(errorMessage);
     }
     
+    // Verifica se algum arquivo já está na lista de uploads
+    const newFilesToUpload = validFiles.filter(newFile => 
+      !uploadItems.some(item => 
+        item.file.name === newFile.name && 
+        item.file.size === newFile.size
+      )
+    );
+    
     // Cria novos itens de upload
-    const newUploadItems = validFiles.map(file => ({
+    const newUploadItems = newFilesToUpload.map(file => ({
       id: `upload-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       file,
       progress: 0,
@@ -166,8 +182,8 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded }) =
         );
       }, 300);
       
-      // Envia o arquivo para a API
-      const response = await documentService.uploadDocument(item.file);
+      // Envia o arquivo para a API com o thread_id
+      const response = await documentService.uploadDocument(item.file, threadId);
       
       // Limpa o intervalo de progresso
       clearInterval(progressInterval);
@@ -337,22 +353,45 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded }) =
             </div>
           )}
 
-          {/* Lista de documentos já enviados */}
+          {/* Lista expandível de documentos já enviados */}
           {uploadedDocuments.length > 0 && (
             <div className="document-upload-list">
-              <h4 className="document-section-title">Uploaded Documents</h4>
-              {uploadedDocuments.map((doc) => (
-                <div key={doc.id} className="document-upload-item uploaded">
-                  <div className="document-upload-item-info">
-                    <div className="document-upload-item-name">
-                      {doc.original_filename}
+              <h4 
+                className="document-section-title document-section-expandable"
+                onClick={() => setIsDocumentListExpanded(!isDocumentListExpanded)}
+              >
+                Uploaded Documents
+                <svg 
+                  className={`document-expand-icon ${isDocumentListExpanded ? 'expanded' : ''}`}
+                  width="12" 
+                  height="12" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </h4>
+              
+              {isDocumentListExpanded && (
+                <div className="document-list-content">
+                  {uploadedDocuments.map((doc) => (
+                    <div key={doc.id} className="document-upload-item uploaded">
+                      <div className="document-upload-item-info">
+                        <div className="document-upload-item-name">
+                          {doc.original_filename}
+                        </div>
+                        <div className="document-upload-item-details">
+                          {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="document-upload-item-details">
-                      {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
 

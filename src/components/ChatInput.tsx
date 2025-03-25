@@ -5,9 +5,10 @@ import '../styles/ChatInput.css';
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  threadId: string;
 }
 
-const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
+const ChatInput = ({ onSendMessage, isLoading, threadId }: ChatInputProps) => {
   const [message, setMessage] = useState('');
   
   const handleSubmit = () => {
@@ -26,7 +27,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
   
   return (
     <div className="chat-input-container">
-      <DocumentUpload />
+      <DocumentUpload threadId={threadId} />
       <textarea
         className="chat-input"
         value={message}

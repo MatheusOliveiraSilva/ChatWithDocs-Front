@@ -4,6 +4,8 @@ import authService from './authService';
 export interface Document {
   id: number;
   user_id: number;
+  thread_id: string;
+  conversation_id?: number;
   filename: string;
   original_filename: string;
   s3_path: string;
@@ -40,9 +42,10 @@ async function authFetch(url: string, options: RequestInit = {}): Promise<Respon
 // Serviço para gerenciamento de documentos
 const documentService = {
   // Upload de documento
-  async uploadDocument(file: File): Promise<Document> {
+  async uploadDocument(file: File, threadId: string): Promise<Document> {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('thread_id', threadId);
 
     const response = await authFetch(`${API_URL}/document/upload`, {
       method: 'POST',
@@ -65,6 +68,18 @@ const documentService = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Erro ao buscar documentos');
+    }
+
+    return await response.json();
+  },
+
+  // Listar documentos de uma conversa específica
+  async getConversationDocuments(threadId: string): Promise<{ documents: Document[], total: number }> {
+    const response = await authFetch(`${API_URL}/document/conversation/${threadId}`);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Erro ao buscar documentos da conversa');
     }
 
     return await response.json();
