@@ -56,13 +56,20 @@ const Chat = () => {
   // Convert conversation messages to Message objects when activeConversation changes
   useEffect(() => {
     if (activeConversation) {
-      const formattedMessages = activeConversation.messages.map(([role, content]) => ({
-        role: role as 'user' | 'assistant' | 'thought' | 'system',
-        content
-      }));
-      setMessages(formattedMessages);
+      // Verificar se já temos mensagens em exibição - caso seja uma conversa temporária
+      // não queremos perder o que já está sendo exibido
+      if (messages.length > 0 && !sendingMessage) {
+        const formattedMessages = activeConversation.messages.map(([role, content]) => ({
+          role: role as 'user' | 'assistant' | 'thought' | 'system',
+          content
+        }));
+        setMessages(formattedMessages);
+      }
     } else {
-      setMessages([]);
+      // Se não há conversa ativa e não está enviando mensagem, limpar mensagens
+      if (!sendingMessage) {
+        setMessages([]);
+      }
     }
   }, [activeConversation]);
 
@@ -152,6 +159,20 @@ const Chat = () => {
         // Nova conversa - primeiro gera um thread ID e nome
         const threadId = conversationService.generateThreadId();
         const threadName = conversationService.generateThreadName(content);
+        
+        // Criar um objeto de conversa temporário imediatamente para feedback visual
+        const tempConversation: Conversation = {
+          id: 0,
+          user_id: 0,
+          thread_id: threadId,
+          thread_name: threadName,
+          messages: [[userMessage.role, userMessage.content]],
+          created_at: new Date().toISOString(),
+          last_used: new Date().toISOString()
+        };
+        
+        // Definir a conversa ativa antes mesmo da resposta da API
+        setActiveConversation(tempConversation);
         
         // Variável para armazenar o estado da resposta parcial
         let streamingMessage: Message = { role: 'assistant', content: '' };
@@ -449,8 +470,28 @@ const Chat = () => {
   const renderEmptyChat = () => {
     return (
       <div className="empty-chat">
-        <h1>Welcome to ChatWithDocs</h1>
-        <p>Start a new conversation or drag documents to this area to upload.</p>
+        <div className="empty-chat-content">
+          <h1>Welcome to ChatWithDocs</h1>
+          <p>Start a new conversation or drag documents to this area to upload.</p>
+          
+          <div className="empty-chat-drop-indicator">
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            <p>Drop files here</p>
+          </div>
+        </div>
       </div>
     );
   };
@@ -589,7 +630,7 @@ const Chat = () => {
             </div>
           )}
           
-          {activeConversation ? (
+          {messages.length > 0 ? (
             <>
               <div className="chat-messages">
                 {messages.map((message, index) => (

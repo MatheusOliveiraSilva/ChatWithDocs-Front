@@ -42,23 +42,63 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #4b5563;
+  padding: 20px;
   text-align: center;
-  padding: 40px 20px;
+  color: #94a3b8;
+}
+
+.empty-chat-content {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .empty-chat h1 {
   font-size: 1.8rem;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 10px;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: #e2e8f0;
 }
 
 .empty-chat p {
   font-size: 1rem;
-  color: #6b7280;
-  max-width: 500px;
-  line-height: 1.5;
+  margin-bottom: 2rem;
+}
+
+.empty-chat-drop-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background-color: rgba(30, 41, 59, 0.5);
+  border: 2px dashed #475569;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 1rem;
+  transition: all 0.2s ease;
+}
+
+.empty-chat-drop-indicator:hover,
+.chat-messages-container.drag-active .empty-chat-drop-indicator {
+  border-color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.empty-chat-drop-indicator svg {
+  margin-bottom: 1rem;
+  stroke: #64748b;
+}
+
+.empty-chat-drop-indicator p {
+  margin: 0;
+  font-weight: 500;
+}
+
+.chat-messages-container.drag-active .empty-chat-drop-indicator {
+  transform: scale(1.05);
 }
 
 /* Sidebar Footer with Logout Button */
