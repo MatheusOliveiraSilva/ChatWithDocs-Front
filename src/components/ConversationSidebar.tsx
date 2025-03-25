@@ -8,6 +8,8 @@ interface ConversationSidebarProps {
   onSelectConversation: (threadId: string) => void;
   onNewChat: () => void;
   onDeleteConversation: (threadId: string) => void;
+  onLogout: () => void;
+  loading?: boolean;
 }
 
 const ConversationSidebar = ({
@@ -15,7 +17,9 @@ const ConversationSidebar = ({
   activeThreadId,
   onSelectConversation,
   onNewChat,
-  onDeleteConversation
+  onDeleteConversation,
+  onLogout,
+  loading = false
 }: ConversationSidebarProps) => {
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(null);
 
@@ -55,7 +59,11 @@ const ConversationSidebar = ({
       </div>
       
       <div className="conversations-list">
-        {conversations.length === 0 ? (
+        {loading ? (
+          <div className="loading-conversations">
+            Loading conversations...
+          </div>
+        ) : conversations.length === 0 ? (
           <div className="no-conversations">
             No conversations yet. Start a new chat!
           </div>
@@ -77,7 +85,7 @@ const ConversationSidebar = ({
                 <button 
                   className="delete-conversation-button" 
                   onClick={(e) => handleDeleteClick(e, conversation.thread_id)}
-                  title="Excluir conversa"
+                  title="Delete conversation"
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6"></polyline>
@@ -90,6 +98,17 @@ const ConversationSidebar = ({
             </div>
           ))
         )}
+      </div>
+      
+      <div className="sidebar-footer">
+        <button className="logout-button" onClick={onLogout} title="Sign Out">
+          <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          Sign Out
+        </button>
       </div>
     </div>
   );

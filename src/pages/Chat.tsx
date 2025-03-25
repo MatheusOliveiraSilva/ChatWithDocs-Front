@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import conversationService, { Conversation, Message } from '../services/conversationService';
 import authService from '../services/authService';
 import agentService, { LLMConfig, DEFAULT_LLM_CONFIG } from '../services/agentService';
+import documentService from '../services/documentService';
 import ConversationSidebar from '../components/ConversationSidebar';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import ModelConfigPanel from '../components/ModelConfigPanel';
+import ConfigButton from '../components/ConfigButton';
 import '../styles/Chat.css';
 
 const Chat = () => {
@@ -19,8 +21,27 @@ const Chat = () => {
   const [isConfigPanelExpanded, setIsConfigPanelExpanded] = useState(false);
   const [currentThinking, setCurrentThinking] = useState('');
   const [isThinkingStreaming, setIsThinkingStreaming] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const configPanelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  // Fechar o painel de configuração ao clicar fora dele
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isConfigPanelExpanded && 
+          configPanelRef.current && 
+          !configPanelRef.current.contains(event.target as Node)) {
+        setIsConfigPanelExpanded(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isConfigPanelExpanded]);
 
   // Fetch conversations when component mounts
   useEffect(() => {
@@ -36,7 +57,7 @@ const Chat = () => {
   useEffect(() => {
     if (activeConversation) {
       const formattedMessages = activeConversation.messages.map(([role, content]) => ({
-        role: role as 'user' | 'assistant',
+        role: role as 'user' | 'assistant' | 'thought' | 'system',
         content
       }));
       setMessages(formattedMessages);
@@ -251,30 +272,29 @@ const Chat = () => {
               setMessages(newMessages);
             }
             
+            // Adicionar mensagem de erro do sistema
+            const errorMessage: Message = {
+              role: 'system',
+              content: `Ocorreu um erro ao processar sua solicitação: ${error.message || 'Erro desconhecido'}`
+            };
+            setMessages(prev => [...prev, errorMessage]);
+            
+            // Finalizar o estado de envio
             setSendingMessage(false);
-          },
-          // Parâmetros adicionais
-          threadName,  // Nome da conversa
-          {},  // memory_config vazio
-          undefined // Não há mensagens anteriores
+          }
         );
       } else {
-        // Conversa existente - usa streaming também
+        // Conversa existente
+        const threadId = activeConversation.thread_id;
         
         // Variável para armazenar o estado da resposta parcial
         let streamingMessage: Message = { role: 'assistant', content: '' };
         // Adicionar mensagem vazia do assistente para começar o streaming
         setMessages([...newMessages, streamingMessage]);
         
-        // Preparar o histórico de mensagens para enviar ao backend
-        const messageHistory = activeConversation.messages.slice();
-        
-        console.log('Iniciando streaming para conversa existente:', activeConversation.thread_id);
-        console.log('Histórico de mensagens:', messageHistory.length, 'mensagens');
-        
         // Usar o streaming para receber a resposta em tempo real
         agentService.streamAgent(
-          activeConversation.thread_id,
+          threadId,
           content,
           llmConfig,
           // Callback para cada chunk recebido
@@ -305,8 +325,6 @@ const Chat = () => {
           },
           // Callback quando o streaming estiver completo
           async (fullResponse) => {
-            console.log('Streaming completo, resposta total:', fullResponse.substring(0, 30) + '...');
-            
             // Primeiro, garantir que a resposta completa está visível na UI
             const completeMessages: Message[] = [
               ...newMessages,
@@ -323,9 +341,9 @@ const Chat = () => {
             
             setMessages(completeMessages);
             
-            // Tentar salvar e atualizar o estado só depois
+            // Atualizar a conversa no banco de dados
             try {
-              console.log('Tentando atualizar conversa no banco de dados...');
+              await conversationService.updateConversation(threadId, completeMessages);
               
               // Atualizar a conversa com a nova mensagem, pensamento e resposta
               console.log('Atualizando conversa com as novas mensagens');
@@ -413,8 +431,7 @@ const Chat = () => {
           },
           // Parâmetros adicionais
           undefined,  // threadName é undefined para conversas existentes
-          {},  // memory_config vazio
-          messageHistory  // Enviar o histórico de mensagens
+          {}  // memory_config vazio
         );
       }
     } catch (error) {
@@ -431,14 +448,93 @@ const Chat = () => {
 
   const renderEmptyChat = () => {
     return (
-      <div className="chat-messages-empty">
-        <div className="empty-chat-icon">✨</div>
-        <h2 className="empty-chat-title">ChatWithDocuments</h2>
-        <p className="empty-chat-subtitle">
-          Start a new conversation by typing a message below or select an existing conversation from the sidebar.
-        </p>
+      <div className="empty-chat">
+        <h1>Welcome to ChatWithDocs</h1>
+        <p>Start a new conversation or drag documents to this area to upload.</p>
       </div>
     );
+  };
+
+  // Funções para lidar com o drag and drop de documentos na área de chat
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    // Verifica se o cursor saiu da área de chat
+    const rect = messagesContainerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    if (
+      e.clientX < rect.left ||
+      e.clientX > rect.right ||
+      e.clientY < rect.top ||
+      e.clientY > rect.bottom
+    ) {
+      setIsDraggingFile(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    
+    // Processar os arquivos arrastados
+    if (e.dataTransfer.files.length) {
+      // Upload de cada arquivo
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        const file = e.dataTransfer.files[i];
+        
+        // Verificar tamanho do arquivo (limite de 50MB)
+        if (file.size > 50 * 1024 * 1024) {
+          alert(`O arquivo ${file.name} é muito grande. O limite é de 50MB.`);
+          continue;
+        }
+        
+        try {
+          // Adicionar uma mensagem temporária de upload
+          const tempMessage: Message = {
+            role: 'system',
+            content: `Fazendo upload do documento: ${file.name}...`
+          };
+          setMessages(prev => [...prev, tempMessage]);
+          
+          // Fazer o upload do documento
+          const doc = await documentService.uploadDocument(file);
+          
+          // Atualizar a mensagem com a confirmação
+          const successMessage: Message = {
+            role: 'system',
+            content: `Documento "${file.name}" enviado com sucesso! ID: ${doc.id}`
+          };
+          
+          // Substituir a mensagem temporária pela mensagem de sucesso
+          setMessages(prev => {
+            const updatedMessages = [...prev];
+            const tempIndex = updatedMessages.indexOf(tempMessage);
+            if (tempIndex !== -1) {
+              updatedMessages[tempIndex] = successMessage;
+            }
+            return updatedMessages;
+          });
+          
+          scrollToBottom();
+        } catch (error) {
+          console.error('Erro ao fazer upload:', error);
+          
+          // Adicionar mensagem de erro
+          const errorMessage: Message = {
+            role: 'system',
+            content: `Erro ao fazer upload do documento ${file.name}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+          };
+          
+          setMessages(prev => [...prev, errorMessage]);
+          scrollToBottom();
+        }
+      }
+    }
   };
 
   return (
@@ -449,54 +545,55 @@ const Chat = () => {
         onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
         onDeleteConversation={handleDeleteConversation}
+        onLogout={handleLogout}
+        loading={loading}
       />
       
-      <div className="chat-main">
-        <div className="chat-header">
-          <h1 className="chat-title">
-            {activeConversation ? activeConversation.thread_name : 'New Chat'}
-          </h1>
-          <button className="logout-button" onClick={handleLogout}>
-            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-            Sign Out
-          </button>
-        </div>
-        
-        <ModelConfigPanel
-          llmConfig={llmConfig}
-          onConfigChange={handleModelConfigChange}
-          isExpanded={isConfigPanelExpanded}
-          onToggleExpand={() => setIsConfigPanelExpanded(!isConfigPanelExpanded)}
-        />
-        
-        <div className="chat-messages">
-          {messages.length > 0 ? (
+      <div className="chat-content">
+        <div 
+          className={`chat-messages-container ${isDraggingFile ? 'drag-active' : ''}`}
+          ref={messagesContainerRef}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <ConfigButton onClick={() => setIsConfigPanelExpanded(!isConfigPanelExpanded)} />
+          
+          {isConfigPanelExpanded && (
+            <div className="config-panel-modal" ref={configPanelRef}>
+              <ModelConfigPanel
+                llmConfig={llmConfig}
+                onConfigChange={handleModelConfigChange}
+                isExpanded={true}
+                onToggleExpand={() => setIsConfigPanelExpanded(false)}
+              />
+            </div>
+          )}
+          
+          {activeConversation ? (
             <>
-              {messages.map((message, index) => (
-                <ChatMessage 
-                  key={index} 
-                  message={message} 
-                  isStreaming={sendingMessage && index === messages.length - 1 && message.role === 'assistant'}
-                  thinking={index === messages.length - 1 && message.role === 'assistant' ? currentThinking : undefined}
-                  isThinkingStreaming={isThinkingStreaming}
-                  previousMessage={index > 0 ? messages[index - 1] : null}
-                  nextMessage={index < messages.length - 1 ? messages[index + 1] : null}
-                />
-              ))}
-              <div ref={messagesEndRef} />
+              <div className="chat-messages">
+                {messages.map((message, index) => (
+                  <ChatMessage
+                    key={index}
+                    message={message}
+                    isStreaming={sendingMessage && index === messages.length - 1 && message.role === 'assistant'}
+                    thinking={index === messages.length - 1 && message.role === 'assistant' ? currentThinking : undefined}
+                    isThinkingStreaming={isThinkingStreaming}
+                  />
+                ))}
+                <div ref={messagesEndRef}></div>
+              </div>
             </>
           ) : (
             renderEmptyChat()
           )}
         </div>
         
-        <div className="chat-input-wrapper">
-          <ChatInput onSendMessage={handleSendMessage} isLoading={sendingMessage} />
-        </div>
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          isLoading={sendingMessage}
+        />
       </div>
     </div>
   );

@@ -2,9 +2,8 @@
   background-color: #1e2124;
   border-radius: 8px;
   border: 1px solid #2d3748;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   overflow: hidden;
+  width: 100%;
 }
 
 .model-config-header {
@@ -41,16 +40,15 @@
 }
 
 .model-config-content {
-  padding: 0;
-  max-height: 0;
-  transition: max-height 0.3s ease-out, padding 0.3s;
-  overflow: hidden;
+  padding: 15px;
+  max-height: unset;
+  overflow: visible;
 }
 
 .model-config-content.expanded {
   padding: 15px;
-  max-height: 700px;
-  transition: max-height 0.3s ease-in, padding 0.3s;
+  max-height: unset;
+  transition: none;
 }
 
 .config-section {

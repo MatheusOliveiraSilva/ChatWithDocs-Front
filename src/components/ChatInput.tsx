@@ -1,4 +1,5 @@
 import { useState, KeyboardEvent } from 'react';
+import DocumentUpload from './DocumentUpload';
 import '../styles/ChatInput.css';
 
 interface ChatInputProps {
@@ -25,6 +26,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
   
   return (
     <div className="chat-input-container">
+      <DocumentUpload />
       <textarea
         className="chat-input"
         value={message}

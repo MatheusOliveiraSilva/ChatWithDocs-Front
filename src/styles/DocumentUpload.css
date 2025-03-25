@@ -1,0 +1,243 @@
+.document-upload-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #2563eb;
+}
+
+.document-upload-btn:hover {
+  color: #1d4ed8;
+  transform: scale(1.1);
+}
+
+.document-upload-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.document-dropzone {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 480px;
+  max-width: 90vw;
+  padding: 24px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.document-dropzone-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.document-dropzone-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.document-dropzone-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  color: #666;
+}
+
+.document-dropzone-area {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 32px 16px;
+  text-align: center;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  background-color: #f9fafb;
+}
+
+.document-dropzone-area.active {
+  border-color: #2563eb;
+  background-color: rgba(37, 99, 235, 0.05);
+}
+
+.document-dropzone-area p {
+  margin: 8px 0 0;
+  color: #666;
+}
+
+.document-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+  margin: 0 0 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.document-upload-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.document-upload-item {
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  background-color: #f9fafb;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+
+.document-upload-item.uploaded {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.document-upload-item-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.document-upload-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.document-upload-item-details {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.document-upload-progress {
+  width: 100%;
+  height: 4px;
+  background-color: #e5e7eb;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.document-upload-progress-bar {
+  height: 100%;
+  background-color: #2563eb;
+  transition: width 0.2s ease;
+}
+
+.document-upload-error {
+  color: #dc2626;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.document-upload-success {
+  color: #16a34a;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.document-upload-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.document-upload-button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.document-upload-button.primary {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+}
+
+.document-upload-button.primary:hover {
+  background-color: #1d4ed8;
+}
+
+.document-upload-button.secondary {
+  background-color: transparent;
+  color: #666;
+  border: 1px solid #ccc;
+}
+
+.document-upload-button.secondary:hover {
+  background-color: #f3f4f6;
+}
+
+.document-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Estilo para a área de chat quando estiver em modo de arrastar */
+.chat-messages-container.drag-active {
+  background-color: rgba(37, 99, 235, 0.05);
+  outline: 2px dashed #2563eb;
+  outline-offset: -10px;
+}
+
+/* Estilo para o botão de configurações */
+.config-button {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #666;
+  transition: all 0.2s ease;
+}
+
+.config-button:hover {
+  background-color: #f3f4f6;
+}
+
+.config-icon {
+  width: 16px;
+  height: 16px;
+} 
