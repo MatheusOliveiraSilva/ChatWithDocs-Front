@@ -12,9 +12,10 @@ export interface Document {
   mime_type: string;
   file_size: number;
   is_processed: boolean;
-  index_status: string;
+  index_status: 'pending' | 'processing' | 'completed' | 'failed';
   doc_metadata: Record<string, any>;
   created_at: string;
+  error_message?: string;
 }
 
 export interface DocumentDownload {
@@ -118,6 +119,62 @@ const documentService = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.detail || 'Erro ao excluir documento');
+    }
+  },
+
+  // Iniciar processamento de um documento
+  async processDocument(documentId: number): Promise<{ status: string, message: string }> {
+    const response = await authFetch(`${API_URL}/ingestion/${documentId}/process`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Erro ao iniciar processamento do documento');
+    }
+
+    return await response.json();
+  },
+
+  // Processar todos os documentos de uma thread
+  async processThreadDocuments(threadId: string): Promise<{ status: string, message: string }> {
+    const response = await authFetch(`${API_URL}/ingestion/thread/${threadId}/process`, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Erro ao processar documentos da thread');
+    }
+
+    return await response.json();
+  },
+
+  // Remover documento do índice
+  async removeFromIndex(documentId: number): Promise<void> {
+    const response = await authFetch(`${API_URL}/ingestion/${documentId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Erro ao remover documento do índice');
+    }
+  },
+
+  // Status para exibição em formato textual
+  getStatusDisplay(status: string): { text: string, icon: string } {
+    switch (status) {
+      case 'pending':
+        return { text: 'Pendente', icon: '⏳' };
+      case 'processing':
+        return { text: 'Processando', icon: '🔄' };
+      case 'completed':
+        return { text: 'Concluído', icon: '✅' };
+      case 'failed':
+        return { text: 'Falha', icon: '❌' };
+      default:
+        return { text: 'Desconhecido', icon: '❓' };
     }
   }
 };

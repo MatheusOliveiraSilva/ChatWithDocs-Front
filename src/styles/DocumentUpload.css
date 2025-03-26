@@ -212,11 +212,22 @@
 .document-upload-item.uploaded {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background-color: #1a2234;
+  transition: background-color 0.2s;
+}
+
+.document-upload-item.uploaded:hover {
+  background-color: #1e293b;
 }
 
 .document-upload-item-info {
   flex: 1;
+  min-width: 0;
+  margin-right: 10px;
 }
 
 /* Botões de ação */
@@ -271,6 +282,15 @@
   
   .document-upload-item {
     background-color: #1a2234;
+  }
+  
+  .document-process-all-button {
+    color: #60a5fa;
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+  
+  .document-process-all-button:hover {
+    background-color: rgba(59, 130, 246, 0.25);
   }
 }
 
@@ -348,4 +368,43 @@
     width: 14px;
     height: 14px;
   }
+}
+
+/* Adicionar estilos para o cabeçalho da seção e botão processar todos */
+
+.document-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+}
+
+.document-process-all-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  color: #3b82f6;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.document-process-all-button:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+.document-upload-item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.document-upload-item-details {
+  font-size: 12px;
+  color: #94a3b8;
 } 

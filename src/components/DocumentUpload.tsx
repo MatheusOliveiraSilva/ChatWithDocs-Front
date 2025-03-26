@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import documentService from '../services/documentService';
+import documentService, { Document } from '../services/documentService';
+import DocumentStatusBadge from './DocumentStatusBadge';
+import DocumentActionMenu from './DocumentActionMenu';
 import '../styles/DocumentUpload.css';
 
 // Interface para o item de upload
@@ -12,17 +14,14 @@ interface UploadItem {
   documentId?: number;
 }
 
-// Interface para documentos já enviados
-interface UploadedDocument {
-  id: number;
-  original_filename: string;
-  file_size: number;
-  created_at: string;
+// Interface para polling de status
+interface PollingStatus {
+  [key: number]: NodeJS.Timeout;
 }
 
 // Props do componente
 interface DocumentUploadProps {
-  onDocumentUploaded?: (document: any) => void;
+  onDocumentUploaded?: (document: Document) => void;
   threadId: string;
 }
 
@@ -30,11 +29,23 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
   const [isDropzoneOpen, setIsDropzoneOpen] = useState(false);
   const [isDropping, setIsDropping] = useState(false);
   const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
-  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
+  const [uploadedDocuments, setUploadedDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isDocumentListExpanded, setIsDocumentListExpanded] = useState(false);
+  const [pollingIntervals, setPollingIntervals] = useState<PollingStatus>({});
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const dropzoneRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Efeito para limpeza de intervalos ao desmontar
+  useEffect(() => {
+    return () => {
+      // Limpar todos os intervalos de polling ao desmontar
+      Object.values(pollingIntervals).forEach(clearInterval);
+    };
+  }, [pollingIntervals]);
 
   // Efeito para adicionar/remover eventos de arrastar e soltar globais
   useEffect(() => {
@@ -90,6 +101,10 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
     
     // Limpar dados quando threadId muda
     setUploadItems([]);
+    
+    // Limpar todos os intervalos existentes
+    Object.values(pollingIntervals).forEach(clearInterval);
+    setPollingIntervals({});
   }, [threadId]);
 
   // Função para buscar documentos já enviados
@@ -106,6 +121,14 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
       const response = await documentService.getConversationDocuments(threadId);
       console.log(`Documentos encontrados:`, response.documents.length);
       setUploadedDocuments(response.documents);
+      
+      // Iniciar polling para documentos em processamento
+      response.documents.forEach(doc => {
+        if (doc.index_status === 'processing') {
+          startDocumentStatusPolling(doc.id);
+        }
+      });
+      
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -186,6 +209,53 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
     });
   };
 
+  // Função para iniciar o monitoramento de status de um documento
+  const startDocumentStatusPolling = (documentId: number) => {
+    // Limpa o intervalo existente, se houver
+    if (pollingIntervals[documentId]) {
+      clearInterval(pollingIntervals[documentId]);
+    }
+    
+    console.log(`Iniciando polling para documento ID: ${documentId}`);
+    
+    const interval = setInterval(async () => {
+      try {
+        const updatedDocument = await documentService.getDocument(documentId);
+        console.log(`Documento ${documentId} status: ${updatedDocument.index_status}`);
+        
+        // Atualizar o documento na lista
+        setUploadedDocuments(prevDocs => 
+          prevDocs.map(doc => 
+            doc.id === documentId ? updatedDocument : doc
+          )
+        );
+        
+        // Parar polling quando atingir estado terminal
+        if (updatedDocument.index_status === 'completed' || updatedDocument.index_status === 'failed') {
+          clearInterval(interval);
+          setPollingIntervals(prev => {
+            const updated = { ...prev };
+            delete updated[documentId];
+            return updated;
+          });
+          
+          console.log(`Polling finalizado para documento ${documentId} com status: ${updatedDocument.index_status}`);
+        }
+      } catch (error) {
+        console.error(`Erro ao verificar status do documento ${documentId}:`, error);
+        clearInterval(interval);
+        setPollingIntervals(prev => {
+          const updated = { ...prev };
+          delete updated[documentId];
+          return updated;
+        });
+      }
+    }, 3000); // Verificar a cada 3 segundos
+    
+    // Armazenar referência para limpeza
+    setPollingIntervals(prev => ({ ...prev, [documentId]: interval }));
+  };
+
   // Função para fazer o upload de um arquivo
   const uploadFile = async (item: UploadItem) => {
     // Defina progressInterval no escopo externo da função e inicialize como undefined
@@ -230,7 +300,18 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
         );
         
         // Atualiza a lista de documentos enviados
-        fetchUploadedDocuments(); // Busca a lista atualizada do servidor
+        fetchUploadedDocuments();
+        
+        // Iniciar processamento automaticamente
+        try {
+          console.log(`Iniciando processamento automático para documento ${response.id}`);
+          await documentService.processDocument(response.id);
+          
+          // Iniciar monitoramento do status
+          startDocumentStatusPolling(response.id);
+        } catch (processingError) {
+          console.error(`Erro ao iniciar processamento do documento ${response.id}:`, processingError);
+        }
         
         // Notifica o componente pai
         if (onDocumentUploaded) {
@@ -259,6 +340,108 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
             : i
         )
       );
+    }
+  };
+
+  // Funções para manipular documentos
+  const handleProcessDocument = async (documentId: number) => {
+    try {
+      await documentService.processDocument(documentId);
+      
+      // Atualizar o status do documento para 'processing'
+      setUploadedDocuments(prevDocs => 
+        prevDocs.map(doc => 
+          doc.id === documentId 
+            ? { ...doc, index_status: 'processing' } 
+            : doc
+        )
+      );
+      
+      // Iniciar monitoramento de status
+      startDocumentStatusPolling(documentId);
+    } catch (error) {
+      console.error(`Erro ao processar documento ${documentId}:`, error);
+      // Mostrar erro ao usuário
+      alert('Erro ao processar documento. Por favor, tente novamente.');
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: number) => {
+    try {
+      // Primeiro tentar remover do índice, se aplicável
+      if (window.confirm('Também deseja remover este documento do índice de busca?')) {
+        try {
+          await documentService.removeFromIndex(documentId);
+        } catch (indexError) {
+          console.error(`Erro ao remover documento ${documentId} do índice:`, indexError);
+          // Não bloquear a exclusão do documento se a remoção do índice falhar
+        }
+      }
+      
+      // Excluir o documento
+      await documentService.deleteDocument(documentId);
+      
+      // Remover da lista local
+      setUploadedDocuments(prevDocs => prevDocs.filter(doc => doc.id !== documentId));
+      
+      // Limpar polling se existir
+      if (pollingIntervals[documentId]) {
+        clearInterval(pollingIntervals[documentId]);
+        setPollingIntervals(prev => {
+          const updated = { ...prev };
+          delete updated[documentId];
+          return updated;
+        });
+      }
+    } catch (error) {
+      console.error(`Erro ao excluir documento ${documentId}:`, error);
+      alert('Erro ao excluir documento. Por favor, tente novamente.');
+    }
+  };
+
+  const handleViewDetails = (documentId: number) => {
+    setSelectedDocumentId(documentId);
+    // Aqui você pode implementar a abertura de um modal para detalhes
+    console.log(`Visualizar detalhes do documento ${documentId}`);
+  };
+
+  const handleDownloadDocument = async (documentId: number) => {
+    try {
+      const downloadInfo = await documentService.getDocumentDownloadUrl(documentId);
+      
+      // Abrir URL em nova aba
+      window.open(downloadInfo.download_url, '_blank');
+    } catch (error) {
+      console.error(`Erro ao obter URL de download para documento ${documentId}:`, error);
+      alert('Erro ao gerar link de download. Por favor, tente novamente.');
+    }
+  };
+
+  const handleProcessAllDocuments = async () => {
+    if (!threadId || uploadedDocuments.length === 0) return;
+    
+    try {
+      // Iniciar processamento em lote
+      await documentService.processThreadDocuments(threadId);
+      
+      // Atualizar status de documentos pendentes ou com falha
+      setUploadedDocuments(prevDocs => 
+        prevDocs.map(doc => 
+          (doc.index_status === 'pending' || doc.index_status === 'failed')
+            ? { ...doc, index_status: 'processing' }
+            : doc
+        )
+      );
+      
+      // Iniciar polling para todos os documentos em processamento
+      uploadedDocuments.forEach(doc => {
+        if (doc.index_status === 'pending' || doc.index_status === 'failed') {
+          startDocumentStatusPolling(doc.id);
+        }
+      });
+    } catch (error) {
+      console.error(`Erro ao processar todos os documentos da thread ${threadId}:`, error);
+      alert('Erro ao iniciar processamento em lote. Por favor, tente novamente.');
     }
   };
 
@@ -396,25 +579,52 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
           {/* Lista expandível de documentos já enviados */}
           {uploadedDocuments.length > 0 && (
             <div className="document-upload-list">
-              <h4 
-                className="document-section-title document-section-expandable"
-                onClick={() => setIsDocumentListExpanded(!isDocumentListExpanded)}
-              >
-                Uploaded Documents
-                <svg 
-                  className={`document-expand-icon ${isDocumentListExpanded ? 'expanded' : ''}`}
-                  width="12" 
-                  height="12" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
+              <div className="document-section-header">
+                <h4 
+                  className="document-section-title document-section-expandable"
+                  onClick={() => setIsDocumentListExpanded(!isDocumentListExpanded)}
                 >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </h4>
+                  Uploaded Documents
+                  <svg 
+                    className={`document-expand-icon ${isDocumentListExpanded ? 'expanded' : ''}`}
+                    width="12" 
+                    height="12" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </h4>
+                
+                {/* Botão para processar todos os documentos */}
+                {uploadedDocuments.some(doc => doc.index_status === 'pending' || doc.index_status === 'failed') && (
+                  <button 
+                    className="document-process-all-button"
+                    onClick={handleProcessAllDocuments}
+                    title="Processar todos os documentos pendentes"
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    Processar Todos
+                  </button>
+                )}
+              </div>
               
               {isDocumentListExpanded && (
                 <div className="document-list-content">
@@ -424,10 +634,25 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
                         <div className="document-upload-item-name">
                           {doc.original_filename}
                         </div>
-                        <div className="document-upload-item-details">
-                          {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                        <div className="document-upload-item-meta">
+                          <div className="document-upload-item-details">
+                            {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                          </div>
+                          <DocumentStatusBadge 
+                            status={doc.index_status}
+                            errorMessage={doc.error_message}
+                          />
                         </div>
                       </div>
+                      
+                      <DocumentActionMenu
+                        documentId={doc.id}
+                        indexStatus={doc.index_status}
+                        onProcess={handleProcessDocument}
+                        onDelete={handleDeleteDocument}
+                        onViewDetails={handleViewDetails}
+                        onDownload={handleDownloadDocument}
+                      />
                     </div>
                   ))}
                 </div>
