@@ -143,7 +143,11 @@ const conversationService = {
   // Helper to generate a unique thread ID
   generateThreadId: (): string => {
     const sessionId = authService.getSessionId() || 'anonymous';
-    const uuid = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    // Formato novo mais curto para o UUID
+    const uuid = crypto.randomUUID 
+      ? crypto.randomUUID().split('-')[0] // Usar apenas a primeira parte do UUID (8 caracteres)
+      : Math.random().toString(36).substring(2, 10); // 8 caracteres alfanuméricos aleatórios
+    
     return `${sessionId}-${uuid}`;
   },
 

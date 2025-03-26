@@ -110,7 +110,11 @@ export const authService = {
     // Se não tiver token ou falhar ao decodificar, usa um ID de sessão do localStorage ou cria um novo
     let sessionId = localStorage.getItem('session_id');
     if (!sessionId) {
-      sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      // Formato anterior: session-${Date.now()}-${Math.random().toString(36).substring(2, 9)}
+      // Formato novo mais curto: s-${últimos 5 dígitos do timestamp}-${6 caracteres alfanuméricos}
+      const timestamp = Date.now().toString().slice(-5);
+      const randomPart = Math.random().toString(36).substring(2, 8);
+      sessionId = `s-${timestamp}-${randomPart}`;
       localStorage.setItem('session_id', sessionId);
     }
     
