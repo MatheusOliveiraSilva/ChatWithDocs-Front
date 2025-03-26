@@ -7,10 +7,11 @@ import '../styles/DocumentUpload.css';
 // Interface para props do componente
 interface DocumentUploadProps {
   threadId: string;
-  onDocumentsChanged?: () => void; // Callback opcional para notificar mudanças nos documentos
+  onDocumentsChanged?: () => void; // Callback para notificar mudanças nos documentos
+  onNewConversationCreated?: (newThreadId: string) => void; // Novo callback específico para nova conversa
 }
 
-const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsChanged }) => {
+const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsChanged, onNewConversationCreated }) => {
   const [uploadedDocuments, setUploadedDocuments] = useState<Document[]>([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -258,13 +259,67 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
       alert(errorMessage);
     }
     
-    if (validFiles.length === 0 || !threadId) {
+    if (validFiles.length === 0) {
       // Se não houver arquivos válidos, desativar o estado de upload após um pequeno atraso
       // para que o usuário veja o feedback visual
       setTimeout(() => {
         setIsUploading(false);
       }, 1000);
-      return; // Não há arquivos válidos para upload ou thread não definida
+      return; // Não há arquivos válidos para upload
+    }
+    
+    // Verificar se temos um threadId ou precisamos criar um novo
+    let currentThreadId = threadId;
+    let isNewChat = false;
+    
+    // Se não tiver threadId, precisamos criar uma nova conversa
+    if (!currentThreadId) {
+      try {
+        isNewChat = true;
+        console.log("DocumentUpload: Criando nova conversa (threadId não encontrado)");
+        const conversationService = await import('../services/conversationService').then(m => m.default);
+        currentThreadId = conversationService.generateThreadId();
+        console.log("DocumentUpload: Novo threadId gerado:", currentThreadId);
+        const threadName = validFiles[0].name || "Document Upload"; // Usar o nome do arquivo como nome da conversa
+        
+        // Criando nova conversa silenciosamente
+        await conversationService.createConversation(currentThreadId, threadName, `Document upload: ${validFiles[0].name}`);
+        console.log("DocumentUpload: Nova conversa criada com sucesso para threadId:", currentThreadId);
+        
+        // Chamar o callback específico para nova conversa, se disponível
+        if (onNewConversationCreated) {
+          console.log("DocumentUpload: Notificando componente pai sobre nova conversa com threadId:", currentThreadId);
+          onNewConversationCreated(currentThreadId);
+        } else {
+          console.log("DocumentUpload: Callback onNewConversationCreated não fornecido, usando onDocumentsChanged como fallback");
+          
+          // Notificar o componente pai que um novo chat foi criado - CRUCIAL!
+          // Esta chamada deve fazer o Chat.tsx buscar a nova conversa
+          if (onDocumentsChanged) {
+            console.log("DocumentUpload: Notificando componente pai sobre a nova conversa via onDocumentsChanged");
+            onDocumentsChanged();
+            
+            // Chamar onDocumentsChanged várias vezes com pequenos intervalos
+            // Isso é uma solução de contorno para garantir que o componente pai receba a notificação
+            setTimeout(() => {
+              console.log("DocumentUpload: Enviando notificação adicional após 500ms");
+              if (onDocumentsChanged) onDocumentsChanged();
+            }, 500);
+            
+            setTimeout(() => {
+              console.log("DocumentUpload: Enviando notificação adicional após 1500ms");
+              if (onDocumentsChanged) onDocumentsChanged();
+            }, 1500);
+          } else {
+            console.warn("DocumentUpload: Nenhum callback fornecido!");
+          }
+        }
+      } catch (error) {
+        console.error('Error creating new conversation:', error);
+        alert('Failed to create a new conversation. Please try again.');
+        setIsUploading(false);
+        return;
+      }
     }
     
     // Array para armazenar os documentos carregados temporariamente
@@ -275,7 +330,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
     for (const file of validFiles) {
       try {
         console.log(`Starting upload for: ${file.name}`);
-        const uploadedDoc = await documentService.uploadDocument(file, threadId);
+        const uploadedDoc = await documentService.uploadDocument(file, currentThreadId);
         console.log(`Upload completed for: ${file.name}`);
         
         // Marcar que pelo menos um upload foi bem-sucedido
@@ -321,6 +376,38 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
       } catch (error) {
         console.error('Error uploading file:', error);
         alert(`Error uploading ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    
+    // Para nova conversa, adicionar uma troca de mensagens contextualizando
+    if (isNewChat && uploadSuccess) {
+      try {
+        const conversationService = await import('../services/conversationService').then(m => m.default);
+        
+        // Adicionar mensagens após um momento para garantir que o documento foi processado
+        setTimeout(async () => {
+          // Mensagem do usuário indicando o upload do documento
+          const userMessage = { 
+            role: 'user' as const, 
+            content: `Here is the document: ${validFiles[0].name}` 
+          };
+          
+          // Resposta do assistente
+          const assistantMessage = { 
+            role: 'assistant' as const, 
+            content: `Got your document. What would you like to know about "${validFiles[0].name}"?` 
+          };
+          
+          // Atualizar a conversa no banco de dados
+          await conversationService.updateConversation(currentThreadId, [userMessage, assistantMessage]);
+          
+          // Notificar o componente pai novamente para atualizar a interface
+          if (onDocumentsChanged) {
+            onDocumentsChanged();
+          }
+        }, 500);
+      } catch (error) {
+        console.error('Error adding initial messages:', error);
       }
     }
     

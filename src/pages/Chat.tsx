@@ -584,21 +584,17 @@ const Chat = () => {
         }
         
         try {
-          // Adicionar uma mensagem temporária de upload
-          const tempMessage: Message = {
-            role: 'system',
-            content: `Uploading document: ${file.name}...`
-          };
-          setMessages(prev => [...prev, tempMessage]);
-          
           // Gerar um thread_id se ainda não houver conversa ativa
           let threadId = activeConversation?.thread_id;
+          let isNewChat = false;
+          
           if (!threadId) {
+            isNewChat = true;
             threadId = conversationService.generateThreadId();
-            const threadName = "Document Upload"; // Nome padrão para novas conversas
+            const threadName = file.name || "Document Upload"; // Usar o nome do arquivo como nome da conversa
             
-            // Criar nova conversa com mensagem de sistema
-            await conversationService.createConversation(threadId, threadName, "Started a new conversation with document upload.");
+            // Criando nova conversa silenciosamente (sem mensagens de sistema)
+            await conversationService.createConversation(threadId, threadName, `Document upload: ${file.name}`);
             
             // Buscar a conversa recém-criada
             const conversation = await conversationService.getConversation(threadId);
@@ -613,40 +609,57 @@ const Chat = () => {
             replaceThreadInUrl(threadId);
           }
           
-          // Fazer o upload do documento
+          // Fazer o upload do documento sem mensagens no chat
           const doc = await documentService.uploadDocument(file, threadId);
           
-          // Atualizar a mensagem com a confirmação
-          const successMessage: Message = {
-            role: 'system',
-            content: `Document "${file.name}" uploaded successfully! ID: ${doc.id}`
-          };
+          // Atualizar a lista de documentos (feedback visual)
+          await fetchConversationDocuments(threadId);
           
-          // Substituir a mensagem temporária pela mensagem de sucesso
-          setMessages(prev => {
-            const updatedMessages = [...prev];
-            const tempIndex = updatedMessages.indexOf(tempMessage);
-            if (tempIndex !== -1) {
-              updatedMessages[tempIndex] = successMessage;
+          // Iniciar explicitamente o processamento do documento se estiver pendente
+          if (doc.index_status === 'pending') {
+            try {
+              await documentService.processDocument(doc.id);
+              console.log(`Processing started for: ${file.name}`);
+              
+              // Atualizar a lista de documentos novamente após iniciar o processamento
+              await fetchConversationDocuments(threadId);
+            } catch (processingError) {
+              console.error(`Error starting document processing:`, processingError);
             }
-            return updatedMessages;
-          });
+          }
           
-          // Atualizar a lista de documentos
-          fetchConversationDocuments(threadId);
-          
-          scrollToBottom();
+          // Para nova conversa, adicionar uma troca de mensagens contextualizando
+          if (isNewChat) {
+            // Adicionar mensagens após um momento para garantir que o documento foi processado
+            setTimeout(async () => {
+              // Mensagem do usuário indicando o upload do documento
+              const userMessage: Message = { 
+                role: 'user', 
+                content: `Here is the document: ${file.name}` 
+              };
+              
+              // Resposta do assistente
+              const assistantMessage: Message = { 
+                role: 'assistant', 
+                content: `Got your document. What would you like to know about "${file.name}"?` 
+              };
+              
+              // Atualizar a UI com as mensagens
+              const newMessages = [userMessage, assistantMessage];
+              setMessages(newMessages);
+              
+              // Atualizar a conversa no banco de dados
+              await conversationService.updateConversation(threadId, newMessages);
+              
+              // Rolar para o fundo após as mensagens serem adicionadas
+              scrollToBottom();
+            }, 500);
+          }
         } catch (error) {
           console.error('Error uploading file:', error);
           
-          // Adicionar mensagem de erro
-          const errorMessage: Message = {
-            role: 'system',
-            content: `Error uploading document ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
-          };
-          
-          setMessages(prev => [...prev, errorMessage]);
-          scrollToBottom();
+          // Mostrar apenas um alerta em vez de mensagem no chat
+          alert(`Error uploading ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
     }
@@ -654,20 +667,106 @@ const Chat = () => {
 
   // Função para buscar documentos de uma conversa
   const fetchConversationDocuments = async (threadId: string) => {
+    console.log("Chat: fetchConversationDocuments chamado com threadId:", threadId);
+    
     try {
       const response = await documentService.getConversationDocuments(threadId);
       setUploadedDocuments(response.documents);
+      console.log(`Chat: Documentos obtidos para threadId ${threadId}:`, response.documents.length);
+      
+      // Se estivermos buscando documentos para uma thread que não é a conversa ativa,
+      // isso pode significar que o DocumentUpload criou uma nova conversa.
+      // Nesse caso, precisamos buscar a conversa e atualizar o estado.
+      const isNewThread = !activeConversation || activeConversation.thread_id !== threadId;
+      console.log("Chat: É uma nova thread?", isNewThread, 
+                 "ThreadId atual:", threadId, 
+                 "ThreadId ativo:", activeConversation?.thread_id);
+      
+      if (threadId && isNewThread) {
+        try {
+          console.log("Chat: Detectada possível nova conversa criada pelo DocumentUpload. ThreadId:", threadId);
+          
+          // Buscar a conversa pelo threadId
+          const conversation = await conversationService.getConversation(threadId);
+          console.log("Chat: Conversa encontrada:", conversation.thread_id, conversation.thread_name);
+          
+          // Atualizar a conversa ativa
+          setActiveConversation(conversation);
+          
+          // Formatar e definir as mensagens
+          const formattedMessages = conversation.messages.map(([role, content]) => ({
+            role: role as 'user' | 'assistant' | 'thought' | 'system',
+            content
+          }));
+          setMessages(formattedMessages);
+          console.log("Chat: Mensagens configuradas:", formattedMessages.length);
+          
+          // Atualizar a URL
+          console.log("Chat: Atualizando URL para nova thread:", threadId);
+          replaceThreadInUrl(threadId);
+          
+          // Atualizar a lista de conversas se esta conversa não existir lá
+          const conversationExists = conversations.some(c => c.thread_id === threadId);
+          if (!conversationExists) {
+            console.log("Chat: Adicionando nova conversa à lista");
+            setConversations(prevConversations => [conversation, ...prevConversations]);
+          }
+        } catch (error) {
+          console.error('Erro ao buscar a nova conversa criada:', error);
+        }
+      }
       
       // Garantir que a barra de documentos seja exibida se houver documentos
       if (response.documents.length > 0) {
         // Forçar uma atualização da interface quando documentos são carregados via callback
-        console.log("Documentos atualizados:", response.documents.length);
+        console.log("Chat: Documentos atualizados:", response.documents.length);
         
         // Se a DocumentBar não estiver visível no momento, este setState forçará uma renderização
         setUploadedDocuments([...response.documents]);
       }
     } catch (error) {
       console.error('Error fetching conversation documents:', error);
+    }
+  };
+
+  // Função para lidar diretamente com novas conversas criadas
+  const handleNewConversationCreated = async (newThreadId: string) => {
+    console.log("Chat: Nova conversa criada recebida com threadId:", newThreadId);
+    
+    try {
+      // Buscar a conversa completa
+      const conversation = await conversationService.getConversation(newThreadId);
+      console.log("Chat: Detalhes da conversa recém-criada:", conversation);
+      
+      // Atualizar a conversa ativa
+      setActiveConversation(conversation);
+      
+      // Formatar e definir as mensagens
+      const formattedMessages = conversation.messages.map(([role, content]) => ({
+        role: role as 'user' | 'assistant' | 'thought' | 'system',
+        content
+      }));
+      setMessages(formattedMessages);
+      
+      // Atualizar a URL para a nova conversa
+      replaceThreadInUrl(newThreadId);
+      
+      // Atualizar a lista de conversas
+      setConversations(prevConversations => {
+        // Verificar se a conversa já existe na lista
+        const exists = prevConversations.some(c => c.thread_id === newThreadId);
+        if (!exists) {
+          return [conversation, ...prevConversations];
+        }
+        return prevConversations;
+      });
+      
+      // Buscar documentos para a nova conversa 
+      fetchConversationDocuments(newThreadId);
+      
+      console.log("Chat: Nova conversa configurada com sucesso");
+    } catch (error) {
+      console.error("Chat: Erro ao configurar nova conversa:", error);
     }
   };
 
@@ -780,7 +879,28 @@ const Chat = () => {
           onSendMessage={handleSendMessage}
           isLoading={sendingMessage}
           threadId={activeConversation?.thread_id || ''}
-          onDocumentsChanged={() => activeConversation?.thread_id && fetchConversationDocuments(activeConversation.thread_id)}
+          onDocumentsChanged={() => {
+            console.log("Chat: Callback onDocumentsChanged foi chamado");
+            
+            // Se temos uma conversa ativa, buscamos documentos para ela
+            if (activeConversation?.thread_id) {
+              console.log("Chat: Buscando documentos para conversa ativa:", activeConversation.thread_id);
+              fetchConversationDocuments(activeConversation.thread_id);
+            } else {
+              console.log("Chat: Não há conversa ativa, buscando conversas recentes");
+              // Se não temos uma conversa ativa, pode ser que o DocumentUpload tenha criado uma nova
+              // Vamos buscar as conversas recentes para ver se encontramos a nova
+              fetchConversations().then(() => {
+                console.log("Chat: Conversas atualizadas:", conversations.length);
+                if (conversations.length > 0) {
+                  // Selecionar a conversa mais recente (primeira da lista)
+                  console.log("Chat: Selecionando a conversa mais recente:", conversations[0].thread_id);
+                  handleSelectConversation(conversations[0].thread_id);
+                }
+              });
+            }
+          }}
+          onNewConversationCreated={handleNewConversationCreated}
         />
       </div>
     </div>
