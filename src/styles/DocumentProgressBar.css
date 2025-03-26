@@ -24,6 +24,36 @@
   text-align: right;
 }
 
+/* Estilo para o indicador de aguardando indexação */
+.document-progress-waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.document-progress-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  border-radius: 50%;
+  border-top-color: #3b82f6;
+  animation: document-spinner-rotate 1s linear infinite;
+}
+
+@keyframes document-spinner-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 /* Dark mode */
 @media (prefers-color-scheme: dark) {
   .document-progress-bar {
@@ -36,6 +66,10 @@
   
   .document-progress-text {
     color: #cbd5e1;
+  }
+
+  .document-progress-waiting {
+    color: #94a3b8;
   }
 }
 
@@ -50,6 +84,10 @@
   }
   
   .document-progress-text {
+    color: #64748b;
+  }
+
+  .document-progress-waiting {
     color: #64748b;
   }
 } 

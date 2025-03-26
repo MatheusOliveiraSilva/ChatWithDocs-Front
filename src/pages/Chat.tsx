@@ -3,15 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import conversationService, { Conversation, Message } from '../services/conversationService';
 import authService from '../services/authService';
 import agentService, { LLMConfig, DEFAULT_LLM_CONFIG } from '../services/agentService';
-import documentService from '../services/documentService';
+import documentService, { Document } from '../services/documentService';
+import useThreadParams from '../hooks/useThreadParams';
 import ConversationSidebar from '../components/ConversationSidebar';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import ModelConfigPanel from '../components/ModelConfigPanel';
 import ConfigButton from '../components/ConfigButton';
+import DocumentBar from '../components/DocumentBar';
 import '../styles/Chat.css';
 
 const Chat = () => {
+  // Get the threadId from the URL if it exists using our custom hook
+  const { threadId: urlThreadId, navigateToThread, navigateToNewChat, replaceThreadInUrl } = useThreadParams();
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
@@ -25,7 +31,7 @@ const Chat = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const configPanelRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
+  const [uploadedDocuments, setUploadedDocuments] = useState<Document[]>([]);
 
   // Fechar o painel de configuração ao clicar fora dele
   useEffect(() => {
@@ -47,6 +53,19 @@ const Chat = () => {
   useEffect(() => {
     fetchConversations();
   }, []);
+
+  // Handle URL threadId changes
+  useEffect(() => {
+    if (urlThreadId) {
+      // If there's a threadId in the URL, load that conversation
+      handleSelectConversation(urlThreadId);
+    } else {
+      // If no threadId in URL, clear the active conversation
+      setActiveConversation(null);
+      setMessages([]);
+      setUploadedDocuments([]);
+    }
+  }, [urlThreadId]);
 
   // Scroll to bottom whenever messages change
   useEffect(() => {
@@ -72,6 +91,15 @@ const Chat = () => {
       }
     }
   }, [activeConversation]);
+
+  // Carregar documentos da conversa ativa quando ela mudar
+  useEffect(() => {
+    if (activeConversation?.thread_id) {
+      fetchConversationDocuments(activeConversation.thread_id);
+    } else {
+      setUploadedDocuments([]);
+    }
+  }, [activeConversation?.thread_id]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -105,17 +133,30 @@ const Chat = () => {
     try {
       setLoading(true);
       const conversation = await conversationService.getConversation(threadId);
+      
+      // Format the messages for display
+      const formattedMessages = conversation.messages.map(([role, content]) => ({
+        role: role as 'user' | 'assistant' | 'thought' | 'system',
+        content
+      }));
+      
       setActiveConversation(conversation);
+      setMessages(formattedMessages);
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch conversation:', error);
       setLoading(false);
+      // If there's an error loading the conversation, redirect to /chat
+      navigate('/chat');
     }
   };
 
   const handleNewChat = () => {
+    // Clear the active conversation and navigate to /chat
+    navigateToNewChat();
     setActiveConversation(null);
     setMessages([]);
+    setUploadedDocuments([]);
   };
 
   const handleDeleteConversation = async (threadId: string) => {
@@ -128,10 +169,12 @@ const Chat = () => {
         prevConversations.filter(c => c.thread_id !== threadId)
       );
       
-      // If the active conversation was deleted, return to the new conversation state
+      // If the active conversation was deleted, navigate to /chat
       if (activeConversation && activeConversation.thread_id === threadId) {
+        navigateToNewChat();
         setActiveConversation(null);
         setMessages([]);
+        setUploadedDocuments([]);
       }
       
       setLoading(false);
@@ -257,6 +300,9 @@ const Chat = () => {
                 setConversations(prevConversations => {
                   return [conversation, ...prevConversations];
                 });
+                
+                // Atualizar a URL for the conversation
+                replaceThreadInUrl(threadId);
               }
             } catch (error) {
               console.error('Erro ao salvar conversa:', error);
@@ -275,6 +321,9 @@ const Chat = () => {
               
               setActiveConversation(localConversation);
               setConversations(prev => [localConversation, ...prev]);
+              
+              // Ainda assim, atualizamos a URL
+              replaceThreadInUrl(threadId);
             }
             
             // Finalizar o estado de envio
@@ -530,7 +579,7 @@ const Chat = () => {
         
         // Verificar tamanho do arquivo (limite de 50MB)
         if (file.size > 50 * 1024 * 1024) {
-          alert(`O arquivo ${file.name} é muito grande. O limite é de 50MB.`);
+          alert(`File ${file.name} exceeds the 50MB limit and will not be uploaded.`);
           continue;
         }
         
@@ -559,6 +608,9 @@ const Chat = () => {
             setConversations(prevConversations => {
               return [conversation, ...prevConversations];
             });
+            
+            // Atualizar a URL
+            replaceThreadInUrl(threadId);
           }
           
           // Fazer o upload do documento
@@ -580,6 +632,9 @@ const Chat = () => {
             return updatedMessages;
           });
           
+          // Atualizar a lista de documentos
+          fetchConversationDocuments(threadId);
+          
           scrollToBottom();
         } catch (error) {
           console.error('Error uploading file:', error);
@@ -597,12 +652,75 @@ const Chat = () => {
     }
   };
 
+  // Função para buscar documentos de uma conversa
+  const fetchConversationDocuments = async (threadId: string) => {
+    try {
+      const response = await documentService.getConversationDocuments(threadId);
+      setUploadedDocuments(response.documents);
+      
+      // Garantir que a barra de documentos seja exibida se houver documentos
+      if (response.documents.length > 0) {
+        // Forçar uma atualização da interface quando documentos são carregados via callback
+        console.log("Documentos atualizados:", response.documents.length);
+        
+        // Se a DocumentBar não estiver visível no momento, este setState forçará uma renderização
+        setUploadedDocuments([...response.documents]);
+      }
+    } catch (error) {
+      console.error('Error fetching conversation documents:', error);
+    }
+  };
+
+  // Função para remover um documento
+  const handleRemoveDocument = async (documentId: number) => {
+    if (!activeConversation?.thread_id) return;
+    
+    try {
+      // Primeiro tentar remover do índice, se aplicável
+      if (window.confirm('Do you also want to remove this document from the search index?')) {
+        try {
+          await documentService.removeFromIndex(documentId);
+        } catch (indexError) {
+          console.error(`Error removing document ${documentId} from index:`, indexError);
+        }
+      }
+      
+      // Excluir o documento
+      await documentService.deleteDocument(documentId);
+      
+      // Atualizar a lista de documentos
+      fetchConversationDocuments(activeConversation.thread_id);
+      
+      // Removendo as mensagens de sistema desnecessárias
+      // setMessages(prev => [
+      //   ...prev,
+      //   {
+      //     role: 'system',
+      //     content: `Document removed successfully (ID: ${documentId})`
+      //   }
+      // ]);
+    } catch (error) {
+      console.error(`Error deleting document ${documentId}:`, error);
+      
+      // Mostrar erro apenas no console, sem adicionar mensagem no chat
+      // setMessages(prev => [
+      //   ...prev,
+      //   {
+      //     role: 'system',
+      //     content: `Error removing document: ${error instanceof Error ? error.message : 'Unknown error'}`
+      //   }
+      // ]);
+      
+      // Opcionalmente, podemos mostrar um alerta para o usuário em caso de erro
+      alert(`Error removing document: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   return (
     <div className="chat-container">
       <ConversationSidebar
         conversations={conversations}
         activeThreadId={activeConversation?.thread_id || null}
-        onSelectConversation={handleSelectConversation}
         onNewChat={handleNewChat}
         onDeleteConversation={handleDeleteConversation}
         onLogout={handleLogout}
@@ -650,10 +768,19 @@ const Chat = () => {
           )}
         </div>
         
+        {activeConversation && (
+          <DocumentBar 
+            documents={uploadedDocuments}
+            onRemoveDocument={handleRemoveDocument}
+            refreshDocuments={() => fetchConversationDocuments(activeConversation.thread_id)}
+          />
+        )}
+        
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={sendingMessage}
           threadId={activeConversation?.thread_id || ''}
+          onDocumentsChanged={() => activeConversation?.thread_id && fetchConversationDocuments(activeConversation.thread_id)}
         />
       </div>
     </div>

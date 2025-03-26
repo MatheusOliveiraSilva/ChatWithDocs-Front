@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Conversation } from '../services/conversationService';
 import '../styles/ConversationSidebar.css';
 
 interface ConversationSidebarProps {
   conversations: Conversation[];
   activeThreadId: string | null;
-  onSelectConversation: (threadId: string) => void;
   onNewChat: () => void;
   onDeleteConversation: (threadId: string) => void;
   onLogout: () => void;
@@ -15,13 +15,13 @@ interface ConversationSidebarProps {
 const ConversationSidebar = ({
   conversations,
   activeThreadId,
-  onSelectConversation,
   onNewChat,
   onDeleteConversation,
   onLogout,
   loading = false
 }: ConversationSidebarProps) => {
   const [hoveredConversation, setHoveredConversation] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Format date to more readable format
   const formatDate = (dateString: string) => {
@@ -38,6 +38,7 @@ const ConversationSidebar = ({
 
   // Handle delete click with stopPropagation to prevent selecting the conversation
   const handleDeleteClick = (e: React.MouseEvent, threadId: string) => {
+    e.preventDefault();
     e.stopPropagation();
     
     const confirmMessage = 'Tem certeza que deseja excluir esta conversa? Esta ação removerá permanentemente:\n\n' +
@@ -51,11 +52,16 @@ const ConversationSidebar = ({
     }
   };
 
+  const handleNewChat = () => {
+    navigate('/chat');
+    onNewChat();
+  };
+
   return (
     <div className="conversation-sidebar">
       <div className="sidebar-header">
         <h2>Conversations</h2>
-        <button className="new-chat-button" onClick={onNewChat}>
+        <button className="new-chat-button" onClick={handleNewChat}>
           <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -75,10 +81,10 @@ const ConversationSidebar = ({
           </div>
         ) : (
           conversations.map((conversation) => (
-            <div
+            <Link
               key={conversation.thread_id}
+              to={`/chat/${conversation.thread_id}`}
               className={`conversation-item ${activeThreadId === conversation.thread_id ? 'active' : ''}`}
-              onClick={() => onSelectConversation(conversation.thread_id)}
               onMouseEnter={() => setHoveredConversation(conversation.thread_id)}
               onMouseLeave={() => setHoveredConversation(null)}
             >
@@ -101,7 +107,7 @@ const ConversationSidebar = ({
                   </svg>
                 </button>
               )}
-            </div>
+            </Link>
           ))
         )}
       </div>

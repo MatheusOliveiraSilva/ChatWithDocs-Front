@@ -15,62 +15,158 @@ const DocumentProgressBar: React.FC<DocumentProgressBarProps> = ({
   const [chunksIndexed, setChunksIndexed] = useState(0);
   const [totalChunks, setTotalChunks] = useState(0);
   const [isPolling, setIsPolling] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState<number>(Date.now());
+  const MAX_RETRIES = 50; // About 5 minutes (with 6 seconds interval)
+  const STALL_THRESHOLD = 60000; // 60 seconds without updates is considered stalled
+
+  // Function to handle completion of progress
+  const handleProgressComplete = () => {
+    console.log("Document processing complete, updating UI");
+    if (onProgressComplete) {
+      // Delay the callback slightly to ensure state updates have propagated
+      setTimeout(() => {
+        onProgressComplete();
+      }, 500);
+    }
+  };
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout | null = null;
+    let progressTimeout: NodeJS.Timeout | null = null;
 
     const fetchProgress = async () => {
       try {
-        const document = await documentService.getDocument(documentId);
+        const progressData = await documentService.getDocumentProgress(documentId);
         
-        // Extrair os metadados de progresso
-        const indexingProgress = document.doc_metadata?.indexing_progress || 0;
-        const chunksIndexed = document.doc_metadata?.chunks_indexed || 0;
-        const totalChunks = document.doc_metadata?.total_chunks || 0;
+        // Check if there has been progress since the last check
+        const hasProgressed = progressData.progress > progress || 
+                             progressData.chunks_indexed > chunksIndexed;
+
+        // Update progress if there is valid data
+        if (progressData.progress >= 0) {
+          setProgress(progressData.progress);
+        }
         
-        setProgress(indexingProgress);
-        setChunksIndexed(chunksIndexed);
-        setTotalChunks(totalChunks);
+        if (progressData.chunks_indexed > 0) {
+          setChunksIndexed(progressData.chunks_indexed);
+        }
         
-        // Parar de fazer polling quando o documento estiver completamente indexado
-        // ou se o status não for mais "processing"
-        if (indexingProgress === 100 || document.index_status !== "processing") {
+        if (progressData.total_chunks > 0) {
+          setTotalChunks(progressData.total_chunks);
+        }
+        
+        // Record the time of the last update if there is progress
+        if (hasProgressed) {
+          setLastUpdateTime(Date.now());
+          // Reset retry counter when there is progress
+          setRetryCount(0);
+        } else {
+          // Increment retry counter without progress
+          setRetryCount(prev => prev + 1);
+        }
+        
+        // Check if processing is completed
+        if (progressData.progress === 100 || progressData.status === 'completed') {
           setIsPolling(false);
-          if (intervalId) {
-            clearInterval(intervalId);
-          }
-          
-          // Notificar o componente pai que o progresso foi concluído
-          if (onProgressComplete) {
-            onProgressComplete();
-          }
+          handleProgressComplete();
         }
+        
+        // Check if the document failed during processing
+        if (progressData.status === 'failed') {
+          setIsPolling(false);
+          console.error("Document failed during processing:", progressData.error_message);
+          handleProgressComplete();
+        }
+        
       } catch (error) {
-        console.error("Erro ao buscar progresso do documento", error);
-        setIsPolling(false);
-        if (intervalId) {
-          clearInterval(intervalId);
+        console.error("Error fetching document progress", error);
+        setRetryCount(prev => prev + 1);
+        
+        // If we have consecutive errors, try a longer delay before the next attempt
+        if (retryCount > 5) {
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Additional delay
         }
+      }
+
+      // Check if exceeded the maximum number of retries
+      if (retryCount >= MAX_RETRIES) {
+        console.warn(`Stopping polling after ${MAX_RETRIES} attempts without progress`);
+        setIsPolling(false);
+        
+        // Force a final document update
+        handleProgressComplete();
+      }
+      
+      // Check if processing is stalled
+      const timeSinceLastUpdate = Date.now() - lastUpdateTime;
+      if (timeSinceLastUpdate > STALL_THRESHOLD && progress > 0 && progress < 100) {
+        console.warn("Processing appears to be stalled, forcing an update");
+        
+        // Force a reprocessing attempt after 1 minute without updates
+        try {
+          // Check the current document status
+          const document = await documentService.getDocument(documentId);
+          
+          if (document.index_status === 'processing') {
+            console.log("Attempting to restart the stalled document processing");
+            // Instead of trying to reprocess, we just force a UI update
+            // This is safer than trying to reprocess a document that's already processing
+            handleProgressComplete();
+          }
+        } catch (reprocessError) {
+          console.error("Error checking possibly stalled document", reprocessError);
+          // In case of error, we also force an update
+          handleProgressComplete();
+        }
+        
+        // Reset the stall timer
+        setLastUpdateTime(Date.now());
       }
     };
 
-    // Buscar o progresso imediatamente
+    // Fetch progress immediately
     fetchProgress();
     
-    // E então iniciar o polling
+    // And then start polling
     if (isPolling) {
-      intervalId = setInterval(fetchProgress, 5000); // Verificar a cada 5 segundos
+      intervalId = setInterval(fetchProgress, 6000); // Check every 6 seconds
+      
+      // Safety timeout to ensure polling doesn't continue indefinitely
+      progressTimeout = setTimeout(() => {
+        console.warn("Safety timeout triggered to prevent infinite polling");
+        setIsPolling(false);
+        handleProgressComplete();
+      }, 10 * 60 * 1000); // 10 minutes timeout (reduced from 15 to 10)
     }
     
     return () => {
       if (intervalId) {
         clearInterval(intervalId);
       }
+      if (progressTimeout) {
+        clearTimeout(progressTimeout);
+      }
     };
-  }, [documentId, isPolling, onProgressComplete]);
+  }, [documentId, isPolling, progress, chunksIndexed, retryCount, lastUpdateTime]);
 
-  // Calcular se devemos mostrar porcentagem ou chunks
+  // Check if there is actual progress to show the bar
+  const hasActualProgress = progress > 0;
+  
+  // Calculate if we should show percentage or chunks
   const shouldShowChunks = totalChunks > 0 && chunksIndexed > 0;
+
+  // If progress is 0%, don't show the bar
+  if (!hasActualProgress) {
+    return (
+      <div className="document-progress-container">
+        <div className="document-progress-text document-progress-waiting">
+          <span className="document-progress-spinner"></span>
+          <span>Preparing document for indexing...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="document-progress-container">
@@ -83,10 +179,10 @@ const DocumentProgressBar: React.FC<DocumentProgressBarProps> = ({
       <div className="document-progress-text">
         {shouldShowChunks ? (
           <span>
-            {progress}% - {chunksIndexed}/{totalChunks} chunks indexados
+            {progress}% - {chunksIndexed}/{totalChunks} chunks indexed
           </span>
         ) : (
-          <span>{progress}% indexado</span>
+          <span>{progress}% indexed</span>
         )}
       </div>
     </div>

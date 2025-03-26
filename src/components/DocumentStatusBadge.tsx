@@ -2,20 +2,19 @@ import React from 'react';
 import '../styles/DocumentStatusBadge.css';
 
 interface DocumentStatusBadgeProps {
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'unknown';
   errorMessage?: string;
-  metadata?: {
-    indexing_progress?: number;
-    chunks_indexed?: number;
-    total_chunks?: number;
-    error?: string;
-  };
+  progress?: number;
+  chunksIndexed?: number;
+  totalChunks?: number;
 }
 
 const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({ 
   status, 
-  errorMessage, 
-  metadata 
+  errorMessage,
+  progress = 0,
+  chunksIndexed = 0,
+  totalChunks = 0
 }) => {
   // Determina as propriedades visuais com base no status
   const getStatusInfo = () => {
@@ -23,45 +22,60 @@ const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({
       case 'pending':
         return {
           icon: '⏳',
-          text: 'Pendente',
+          text: 'Pending',
           className: 'status-pending',
-          tooltip: 'Documento aguardando processamento'
+          tooltip: 'Document waiting for processing'
         };
       case 'processing':
-        const progress = metadata?.indexing_progress || 0;
-        const chunksIndexed = metadata?.chunks_indexed || 0;
-        const totalChunks = metadata?.total_chunks || 0;
-        const progressText = totalChunks > 0 
-          ? `${progress}% (${chunksIndexed}/${totalChunks} chunks)` 
-          : `${progress}%`;
+        // Para determinar se está fazendo upload ou indexando
+        // Se não há progresso ainda, provavelmente está fazendo upload
+        // Caso contrário, está indexando
+        const isUploading = progress === 0;
+        const isIndexing = progress > 0;
+        
+        // Texto apropriado para cada estágio
+        let statusText = 'Processing';
+        let tooltipText = 'Processing in progress';
+        
+        if (isUploading) {
+          statusText = 'Uploading';
+          tooltipText = 'Document is being prepared for indexing';
+        } else if (isIndexing) {
+          statusText = `Indexing: ${progress}%`;
+          tooltipText = `Document is being indexed - ${progress}% completed`;
+          
+          if (chunksIndexed > 0 && totalChunks > 0) {
+            tooltipText += ` (${chunksIndexed}/${totalChunks} chunks)`;
+          }
+        }
           
         return {
-          icon: '🔄',
-          text: `Processando: ${progressText}`,
-          className: 'status-processing',
-          tooltip: `Extração e indexação em andamento - ${progressText} concluído`
+          icon: isUploading ? '📤' : '🔄',
+          text: statusText,
+          className: `status-processing ${isUploading ? 'status-uploading' : 'status-indexing'}`,
+          tooltip: tooltipText
         };
       case 'completed':
         return {
           icon: '✅',
-          text: 'Concluído',
+          text: 'Completed',
           className: 'status-completed',
-          tooltip: 'Documento indexado e disponível para consulta'
+          tooltip: 'Document indexed and ready for queries'
         };
       case 'failed':
-        const detailedError = metadata?.error || errorMessage || 'Erro durante o processamento';
+        const detailedError = errorMessage || 'Error during processing';
         return {
           icon: '❌',
-          text: 'Falha',
+          text: 'Failed',
           className: 'status-failed',
           tooltip: detailedError
         };
       default:
         return {
           icon: '❓',
-          text: 'Desconhecido',
+          text: 'Unknown',
           className: 'status-unknown',
-          tooltip: 'Status desconhecido'
+          tooltip: 'Unknown status'
         };
     }
   };

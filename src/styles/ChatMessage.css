@@ -11,7 +11,7 @@
   background-color: #1e2124;
 }
 
-.message-avatar {
+.avatar {
   flex-shrink: 0;
   width: 36px;
   height: 36px;
@@ -21,28 +21,29 @@
   align-items: center;
   justify-content: center;
   font-weight: bold;
+  overflow: hidden; /* Para garantir que o conteúdo não ultrapasse as bordas */
 }
 
 .user-avatar {
   background: linear-gradient(135deg, #4FD1C5 0%, #63B3ED 100%);
-  color: #1A202C;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #FFFFFF;
 }
 
 .assistant-avatar {
   background: linear-gradient(135deg, #805AD5 0%, #D53F8C 100%);
-  color: white;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #FFFFFF;
+}
+
+.system-avatar {
+  background: linear-gradient(135deg, #3182CE 0%, #2B6CB0 100%);
+  color: #FFFFFF;
+}
+
+/* Garante que os ícones SVG dentro dos avatares fiquem centralizados e com tamanho adequado */
+.avatar svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2px;
 }
 
 .message-content {
@@ -55,12 +56,16 @@
   margin-bottom: 4px;
 }
 
-.user-message .message-role {
+.user .message-role {
   color: #4FD1C5;
 }
 
-.assistant-message .message-role {
+.assistant .message-role {
   color: #805AD5;
+}
+
+.system .message-role {
+  color: #3182CE;
 }
 
 .message-text {
@@ -190,7 +195,7 @@
     margin-bottom: 16px;
   }
   
-  .message-avatar {
+  .avatar {
     width: 30px;
     height: 30px;
     margin-right: 8px;
@@ -270,4 +275,15 @@
   color: #a0aec0;
   animation: cursor-blink 1s step-end infinite;
   margin-left: 2px;
+}
+
+.chat-message.user {
+  justify-content: flex-end;
+}
+
+.chat-message.system {
+  background-color: rgba(38, 50, 71, 0.3);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 15px;
 }

@@ -168,21 +168,71 @@ const documentService = {
     chunks_indexed: number;
     total_chunks: number;
     status: string;
+    error_message?: string;
   }> {
-    const response = await authFetch(`${API_URL}/ingestion/${documentId}/progress`);
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || 'Erro ao obter progresso de indexação');
+    try {
+      // Primeiro, tentamos obter o progresso através do endpoint específico
+      const response = await authFetch(`${API_URL}/ingestion/${documentId}/progress`);
+      
+      if (!response.ok) {
+        // Se a API de progresso falhar, tentamos obter o documento e extrair informações de lá
+        const document = await this.getDocument(documentId);
+        
+        return {
+          progress: document.doc_metadata?.indexing_progress || 0,
+          chunks_indexed: document.doc_metadata?.chunks_indexed || 0,
+          total_chunks: document.doc_metadata?.total_chunks || 0,
+          status: document.index_status,
+          error_message: document.error_message
+        };
+      }
+      
+      const data = await response.json();
+      
+      // Se o status for 'failed', tentar obter o erro do documento
+      let errorMessage = data.error_message;
+      if (data.status === 'failed' && !errorMessage) {
+        try {
+          const document = await this.getDocument(documentId);
+          errorMessage = document.error_message;
+        } catch (error) {
+          console.error('Erro ao obter mensagem de erro do documento:', error);
+        }
+      }
+      
+      return {
+        progress: data.progress || 0,
+        chunks_indexed: data.chunks_indexed || 0,
+        total_chunks: data.total_chunks || 0,
+        status: data.status || 'unknown',
+        error_message: errorMessage
+      };
+    } catch (error) {
+      console.error('Erro ao obter progresso do documento:', error);
+      
+      // Em caso de erro, tentamos pelo menos obter o status básico do documento
+      try {
+        const document = await this.getDocument(documentId);
+        
+        return {
+          progress: document.doc_metadata?.indexing_progress || 0,
+          chunks_indexed: document.doc_metadata?.chunks_indexed || 0,
+          total_chunks: document.doc_metadata?.total_chunks || 0,
+          status: document.index_status,
+          error_message: document.error_message
+        };
+      } catch (secondError) {
+        // Se tudo falhar, retornamos valores padrão
+        console.error('Erro secundário ao tentar obter informações do documento:', secondError);
+        return {
+          progress: 0,
+          chunks_indexed: 0,
+          total_chunks: 0,
+          status: 'unknown',
+          error_message: error instanceof Error ? error.message : 'Erro desconhecido'
+        };
+      }
     }
-
-    const data = await response.json();
-    return {
-      progress: data.progress || 0,
-      chunks_indexed: data.chunks_indexed || 0,
-      total_chunks: data.total_chunks || 0,
-      status: data.status || 'unknown'
-    };
   },
 
   // Status para exibição em formato textual

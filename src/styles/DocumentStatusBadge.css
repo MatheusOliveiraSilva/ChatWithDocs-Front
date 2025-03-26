@@ -2,8 +2,8 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  border-radius: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
   cursor: default;
@@ -23,33 +23,38 @@
 /* Estados específicos */
 .status-pending {
   background-color: rgba(234, 179, 8, 0.15);
-  color: #d97706;
-  border: 1px solid rgba(234, 179, 8, 0.3);
+  color: #f59e0b;
 }
 
 .status-processing {
-  background-color: rgba(59, 130, 246, 0.15);
+  background-color: rgba(37, 99, 235, 0.15);
   color: #3b82f6;
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  animation: pulse 2s infinite;
+}
+
+.status-uploading {
+  background-color: rgba(79, 70, 229, 0.15);
+  color: #6366f1;
+}
+
+.status-indexing {
+  background-color: rgba(6, 182, 212, 0.15);
+  color: #06b6d4;
+  animation: pulse-index 2s infinite;
 }
 
 .status-completed {
-  background-color: rgba(34, 197, 94, 0.15);
-  color: #22c55e;
-  border: 1px solid rgba(34, 197, 94, 0.3);
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #10b981;
 }
 
 .status-failed {
   background-color: rgba(239, 68, 68, 0.15);
   color: #ef4444;
-  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 .status-unknown {
   background-color: rgba(107, 114, 128, 0.15);
-  color: #6b7280;
-  border: 1px solid rgba(107, 114, 128, 0.3);
+  color: #9ca3af;
 }
 
 /* Animação de pulso para status em processamento */
@@ -62,6 +67,18 @@
   }
   100% {
     opacity: 1;
+  }
+}
+
+@keyframes pulse-index {
+  0% {
+    background-color: rgba(6, 182, 212, 0.15);
+  }
+  50% {
+    background-color: rgba(6, 182, 212, 0.3);
+  }
+  100% {
+    background-color: rgba(6, 182, 212, 0.15);
   }
 }
 
@@ -90,5 +107,55 @@
   .status-unknown {
     background-color: rgba(107, 114, 128, 0.2);
     color: #9ca3af;
+  }
+}
+
+/* Estilos para modo claro */
+@media (prefers-color-scheme: light) {
+  .status-pending {
+    background-color: rgba(234, 179, 8, 0.1);
+    color: #b45309;
+  }
+  
+  .status-processing {
+    background-color: rgba(37, 99, 235, 0.1);
+    color: #1d4ed8;
+  }
+  
+  .status-uploading {
+    background-color: rgba(79, 70, 229, 0.1);
+    color: #4338ca;
+  }
+  
+  .status-indexing {
+    background-color: rgba(6, 182, 212, 0.1);
+    color: #0e7490;
+  }
+  
+  @keyframes pulse-index {
+    0% {
+      background-color: rgba(6, 182, 212, 0.1);
+    }
+    50% {
+      background-color: rgba(6, 182, 212, 0.2);
+    }
+    100% {
+      background-color: rgba(6, 182, 212, 0.1);
+    }
+  }
+  
+  .status-completed {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: #047857;
+  }
+  
+  .status-failed {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: #b91c1c;
+  }
+  
+  .status-unknown {
+    background-color: rgba(107, 114, 128, 0.1);
+    color: #4b5563;
   }
 } 

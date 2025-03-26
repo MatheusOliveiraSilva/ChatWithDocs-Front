@@ -54,6 +54,14 @@ const ChatMessage = ({
   const associatedThoughtContent = 
     hasAssociatedThought ? nextMessage?.content : null;
   
+  // Verificar se esta é uma mensagem de upload
+  const isUploadMessage = message.role === 'system' && 
+    (message.content.includes('Uploading document') || 
+     message.content.includes('uploaded successfully') ||
+     message.content.includes('Document removed') ||
+     message.content.includes('Document "') ||
+     message.content.includes('Error uploading document'));
+  
   // Atualizar o estado de expansão com base no streaming
   useEffect(() => {
     // Se estiver recebendo pensamentos, manter expandido
@@ -71,16 +79,38 @@ const ChatMessage = ({
   };
   
   return (
-    <div className={`chat-message ${isUser ? 'user-message' : 'assistant-message'} ${isStreaming ? 'message-streaming' : ''}`}>
-      <div className="message-avatar">
-        {isUser ? (
-          <div className="user-avatar">U</div>
-        ) : (
-          <div className="assistant-avatar">A</div>
-        )}
-      </div>
-      <div className="message-content">
-        <div className="message-role">{isUser ? 'You' : 'Assistant'}</div>
+    <div className={`chat-message ${message.role === 'user' ? 'user' : message.role === 'system' ? 'system' : 'assistant'}`}>
+      {message.role === 'user' ? (
+        <div className="avatar user-avatar">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+        </div>
+      ) : message.role === 'system' ? (
+        <div className="avatar system-avatar">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+        </div>
+      ) : (
+        <div className="avatar assistant-avatar">
+          <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <line x1="8" y1="21" x2="16" y2="21"></line>
+            <line x1="12" y1="17" x2="12" y2="21"></line>
+          </svg>
+        </div>
+      )}
+      
+      <div className={`message-content ${isStreaming ? 'streaming' : ''} ${
+        message.role === 'system' ? 'system-message' : ''
+      } ${isUploadMessage ? 'upload-message' : ''}`}>
+        <div className="message-role">
+          {isUser ? 'You' : message.role === 'system' ? 'System' : 'Assistant'}
+        </div>
         
         {/* Caixa de processo de pensamento do streaming atual */}
         {shouldShowThinking && (
