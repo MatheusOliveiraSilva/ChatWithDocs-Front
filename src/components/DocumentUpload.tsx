@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import documentService, { Document } from '../services/documentService';
 import DocumentStatusBadge from './DocumentStatusBadge';
 import DocumentActionMenu from './DocumentActionMenu';
+import DocumentProgressBar from './DocumentProgressBar';
 import '../styles/DocumentUpload.css';
 
 // Interface para o item de upload
@@ -464,6 +465,50 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
     });
   };
 
+  // Renderização de um documento único na lista
+  const renderDocument = (doc: Document) => {
+    const isProcessing = doc.index_status === 'processing';
+    
+    return (
+      <div key={doc.id} className="document-upload-item uploaded">
+        <div className="document-upload-item-info">
+          <div className="document-upload-item-name">
+            {doc.original_filename}
+          </div>
+          <div className="document-upload-item-meta">
+            <div className="document-upload-item-details">
+              {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+            </div>
+            <DocumentStatusBadge 
+              status={doc.index_status}
+              errorMessage={doc.error_message}
+              metadata={doc.doc_metadata}
+            />
+          </div>
+          
+          {isProcessing && (
+            <DocumentProgressBar 
+              documentId={doc.id} 
+              onProgressComplete={() => {
+                // Atualizar o documento quando o progresso for concluído
+                fetchUploadedDocuments();
+              }}
+            />
+          )}
+        </div>
+        
+        <DocumentActionMenu
+          documentId={doc.id}
+          indexStatus={doc.index_status}
+          onProcess={handleProcessDocument}
+          onDelete={handleDeleteDocument}
+          onViewDetails={handleViewDetails}
+          onDownload={handleDownloadDocument}
+        />
+      </div>
+    );
+  }
+
   return (
     <>
       {/* Botão de upload */}
@@ -628,33 +673,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ onDocumentUploaded, thr
               
               {isDocumentListExpanded && (
                 <div className="document-list-content">
-                  {uploadedDocuments.map((doc) => (
-                    <div key={doc.id} className="document-upload-item uploaded">
-                      <div className="document-upload-item-info">
-                        <div className="document-upload-item-name">
-                          {doc.original_filename}
-                        </div>
-                        <div className="document-upload-item-meta">
-                          <div className="document-upload-item-details">
-                            {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
-                          </div>
-                          <DocumentStatusBadge 
-                            status={doc.index_status}
-                            errorMessage={doc.error_message}
-                          />
-                        </div>
-                      </div>
-                      
-                      <DocumentActionMenu
-                        documentId={doc.id}
-                        indexStatus={doc.index_status}
-                        onProcess={handleProcessDocument}
-                        onDelete={handleDeleteDocument}
-                        onViewDetails={handleViewDetails}
-                        onDownload={handleDownloadDocument}
-                      />
-                    </div>
-                  ))}
+                  {uploadedDocuments.map((doc) => renderDocument(doc))}
                 </div>
               )}
             </div>

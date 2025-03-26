@@ -127,14 +127,15 @@ const conversationService = {
   // Delete a conversation
   deleteConversation: async (threadId: string): Promise<boolean> => {
     try {
-      await axios.delete(`${API_URL}/conversation/${threadId}`, {
+      const response = await axios.delete(`${API_URL}/conversation/thread/${threadId}`, {
         headers: authService.getAuthHeader(),
         withCredentials: true
       });
       
+      console.log('Conversa e todos os recursos associados excluídos com sucesso:', response.data);
       return true;
     } catch (error) {
-      console.error(`Error deleting conversation ${threadId}:`, error);
+      console.error(`Erro ao excluir conversa ${threadId} e recursos associados:`, error);
       throw error;
     }
   },

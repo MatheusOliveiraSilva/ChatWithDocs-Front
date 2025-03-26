@@ -4,9 +4,19 @@ import '../styles/DocumentStatusBadge.css';
 interface DocumentStatusBadgeProps {
   status: 'pending' | 'processing' | 'completed' | 'failed';
   errorMessage?: string;
+  metadata?: {
+    indexing_progress?: number;
+    chunks_indexed?: number;
+    total_chunks?: number;
+    error?: string;
+  };
 }
 
-const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({ status, errorMessage }) => {
+const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({ 
+  status, 
+  errorMessage, 
+  metadata 
+}) => {
   // Determina as propriedades visuais com base no status
   const getStatusInfo = () => {
     switch (status) {
@@ -18,11 +28,18 @@ const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({ status, error
           tooltip: 'Documento aguardando processamento'
         };
       case 'processing':
+        const progress = metadata?.indexing_progress || 0;
+        const chunksIndexed = metadata?.chunks_indexed || 0;
+        const totalChunks = metadata?.total_chunks || 0;
+        const progressText = totalChunks > 0 
+          ? `${progress}% (${chunksIndexed}/${totalChunks} chunks)` 
+          : `${progress}%`;
+          
         return {
           icon: '🔄',
-          text: 'Processando',
+          text: `Processando: ${progressText}`,
           className: 'status-processing',
-          tooltip: 'Extração e indexação em andamento'
+          tooltip: `Extração e indexação em andamento - ${progressText} concluído`
         };
       case 'completed':
         return {
@@ -32,11 +49,12 @@ const DocumentStatusBadge: React.FC<DocumentStatusBadgeProps> = ({ status, error
           tooltip: 'Documento indexado e disponível para consulta'
         };
       case 'failed':
+        const detailedError = metadata?.error || errorMessage || 'Erro durante o processamento';
         return {
           icon: '❌',
           text: 'Falha',
           className: 'status-failed',
-          tooltip: errorMessage || 'Erro durante o processamento'
+          tooltip: detailedError
         };
       default:
         return {

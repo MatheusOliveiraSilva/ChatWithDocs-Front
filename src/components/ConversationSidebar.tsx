@@ -40,7 +40,13 @@ const ConversationSidebar = ({
   const handleDeleteClick = (e: React.MouseEvent, threadId: string) => {
     e.stopPropagation();
     
-    if (confirm('Are you sure you want to delete this conversation?')) {
+    const confirmMessage = 'Tem certeza que deseja excluir esta conversa? Esta ação removerá permanentemente:\n\n' +
+      '- Todas as mensagens da conversa\n' +
+      '- Todos os documentos associados\n' +
+      '- Todos os vetores de indexação no sistema RAG\n\n' +
+      'Esta ação não pode ser desfeita.';
+    
+    if (confirm(confirmMessage)) {
       onDeleteConversation(threadId);
     }
   };

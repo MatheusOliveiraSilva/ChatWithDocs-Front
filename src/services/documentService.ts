@@ -162,6 +162,29 @@ const documentService = {
     }
   },
 
+  // Obter progresso de indexação de um documento
+  async getDocumentProgress(documentId: number): Promise<{
+    progress: number;
+    chunks_indexed: number;
+    total_chunks: number;
+    status: string;
+  }> {
+    const response = await authFetch(`${API_URL}/ingestion/${documentId}/progress`);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Erro ao obter progresso de indexação');
+    }
+
+    const data = await response.json();
+    return {
+      progress: data.progress || 0,
+      chunks_indexed: data.chunks_indexed || 0,
+      total_chunks: data.total_chunks || 0,
+      status: data.status || 'unknown'
+    };
+  },
+
   // Status para exibição em formato textual
   getStatusDisplay(status: string): { text: string, icon: string } {
     switch (status) {
