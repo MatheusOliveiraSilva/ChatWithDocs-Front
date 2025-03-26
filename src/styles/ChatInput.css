@@ -35,6 +35,17 @@
   cursor: not-allowed;
 }
 
+/* Estilo específico para quando documentos estão sendo processados */
+.chat-input.processing-documents {
+  background-color: rgba(246, 173, 85, 0.05);
+  border-left: 3px solid #f6ad55;
+}
+
+.chat-input.processing-documents::placeholder {
+  color: #f6ad55;
+  font-style: italic;
+}
+
 .send-button {
   background: linear-gradient(135deg, #4FD1C5 0%, #63B3ED 100%);
   color: #1A202C;

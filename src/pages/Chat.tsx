@@ -33,6 +33,11 @@ const Chat = () => {
   const configPanelRef = useRef<HTMLDivElement>(null);
   const [uploadedDocuments, setUploadedDocuments] = useState<Document[]>([]);
 
+  // Função para verificar se há documentos em processamento
+  const hasProcessingDocuments = () => {
+    return uploadedDocuments.some(doc => doc.index_status === 'processing' || doc.index_status === 'pending');
+  };
+
   // Fechar o painel de configuração ao clicar fora dele
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -914,6 +919,7 @@ const Chat = () => {
           onSendMessage={handleSendMessage}
           isLoading={sendingMessage}
           threadId={activeConversation?.thread_id || ''}
+          hasProcessingDocuments={hasProcessingDocuments()}
           onDocumentsChanged={() => {
             console.log("Chat: Callback onDocumentsChanged foi chamado");
             
