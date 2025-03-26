@@ -298,7 +298,12 @@ const Chat = () => {
                 
                 // Atualizar a lista de conversas
                 setConversations(prevConversations => {
-                  return [conversation, ...prevConversations];
+                  // Verificar se a conversa já existe na lista
+                  const exists = prevConversations.some(c => c.thread_id === threadId);
+                  if (!exists) {
+                    return [conversation, ...prevConversations];
+                  }
+                  return prevConversations;
                 });
                 
                 // Atualizar a URL for the conversation
@@ -600,9 +605,14 @@ const Chat = () => {
             const conversation = await conversationService.getConversation(threadId);
             setActiveConversation(conversation);
             
-            // Atualizar a lista de conversas
+            // Atualizar a lista de conversas - MODIFICADO: agora com verificação para evitar duplicatas
             setConversations(prevConversations => {
-              return [conversation, ...prevConversations];
+              // Verificar se a conversa já existe na lista
+              const exists = prevConversations.some(c => c.thread_id === threadId);
+              if (!exists) {
+                return [conversation, ...prevConversations];
+              }
+              return prevConversations;
             });
             
             // Atualizar a URL
@@ -706,11 +716,22 @@ const Chat = () => {
           replaceThreadInUrl(threadId);
           
           // Atualizar a lista de conversas se esta conversa não existir lá
-          const conversationExists = conversations.some(c => c.thread_id === threadId);
-          if (!conversationExists) {
-            console.log("Chat: Adicionando nova conversa à lista");
-            setConversations(prevConversations => [conversation, ...prevConversations]);
-          }
+          // MODIFICADO: Melhor verificação de existência
+          setConversations(prevConversations => {
+            // Verificar se a conversa já existe
+            const existingIndex = prevConversations.findIndex(c => c.thread_id === threadId);
+            
+            if (existingIndex >= 0) {
+              // Conversa já existe, vamos apenas atualizá-la (não duplicar)
+              const newConversations = [...prevConversations];
+              newConversations[existingIndex] = conversation;
+              return newConversations;
+            } else {
+              // Conversa não existe, adicioná-la ao início
+              console.log("Chat: Adicionando nova conversa à lista");
+              return [conversation, ...prevConversations];
+            }
+          });
         } catch (error) {
           console.error('Erro ao buscar a nova conversa criada:', error);
         }
@@ -734,6 +755,14 @@ const Chat = () => {
     console.log("Chat: Nova conversa criada recebida com threadId:", newThreadId);
     
     try {
+      // Verificar se já temos essa conversa como ativa
+      if (activeConversation?.thread_id === newThreadId) {
+        console.log("Chat: Conversa já está ativa, apenas atualizando documentos");
+        // Atualizar documentos para a conversa
+        fetchConversationDocuments(newThreadId);
+        return;
+      }
+      
       // Buscar a conversa completa
       const conversation = await conversationService.getConversation(newThreadId);
       console.log("Chat: Detalhes da conversa recém-criada:", conversation);
@@ -754,11 +783,17 @@ const Chat = () => {
       // Atualizar a lista de conversas
       setConversations(prevConversations => {
         // Verificar se a conversa já existe na lista
-        const exists = prevConversations.some(c => c.thread_id === newThreadId);
-        if (!exists) {
+        const existingIndex = prevConversations.findIndex(c => c.thread_id === newThreadId);
+        
+        if (existingIndex >= 0) {
+          // Conversa já existe, vamos apenas atualizá-la
+          const newConversations = [...prevConversations];
+          newConversations[existingIndex] = conversation;
+          return newConversations;
+        } else {
+          // Conversa não existe, adicioná-la ao início
           return [conversation, ...prevConversations];
         }
-        return prevConversations;
       });
       
       // Buscar documentos para a nova conversa 
@@ -893,9 +928,14 @@ const Chat = () => {
               fetchConversations().then(() => {
                 console.log("Chat: Conversas atualizadas:", conversations.length);
                 if (conversations.length > 0) {
-                  // Selecionar a conversa mais recente (primeira da lista)
-                  console.log("Chat: Selecionando a conversa mais recente:", conversations[0].thread_id);
-                  handleSelectConversation(conversations[0].thread_id);
+                  // Verificar se já estamos visualizando a conversa mais recente
+                  const mostRecentThreadId = conversations[0].thread_id;
+                  if (!activeConversation || activeConversation.thread_id !== mostRecentThreadId) {
+                    console.log("Chat: Selecionando a conversa mais recente:", mostRecentThreadId);
+                    handleSelectConversation(mostRecentThreadId);
+                  } else {
+                    console.log("Chat: Já estamos visualizando a conversa mais recente");
+                  }
                 }
               });
             }
