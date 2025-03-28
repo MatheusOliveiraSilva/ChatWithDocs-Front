@@ -15,7 +15,7 @@ import '../styles/Chat.css';
 
 const Chat = () => {
   // Get the threadId from the URL if it exists using our custom hook
-  const { threadId: urlThreadId, navigateToThread, navigateToNewChat, replaceThreadInUrl } = useThreadParams();
+  const { threadId: urlThreadId, navigateToNewChat, replaceThreadInUrl } = useThreadParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -511,7 +511,7 @@ const Chat = () => {
           },
           // Parâmetros adicionais
           undefined,  // threadName é undefined para conversas existentes
-          {}  // memory_config vazio
+          // {}  // memory_config vazio
         );
       }
     } catch (error) {

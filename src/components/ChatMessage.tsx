@@ -14,20 +14,11 @@ interface ChatMessageProps {
   nextMessage?: Message | null; // Próxima mensagem, para associar pensamentos a mensagens de assistente
 }
 
-// Interface para os props do componente de código
-interface CodeProps {
-  node?: any;
-  inline?: boolean;
-  className?: string;
-  children: React.ReactNode;
-}
-
 const ChatMessage = ({ 
   message, 
   isStreaming = false, 
   thinking, 
   isThinkingStreaming = false,
-  previousMessage,
   nextMessage
 }: ChatMessageProps) => {
   const isUser = message.role === 'user';
@@ -155,6 +146,7 @@ const ChatMessage = ({
                   const match = /language-(\w+)/.exec(className || '');
                   return !inline && match ? (
                     <SyntaxHighlighter
+                      // @ts-ignore
                       style={vscDarkPlus}
                       language={match[1]}
                       PreTag="div"

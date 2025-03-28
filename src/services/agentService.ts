@@ -143,7 +143,6 @@ const agentService = {
     onComplete: (fullResponse: string) => void,
     onError: (error: any) => void,
     threadName?: string,
-    memoryConfig: MemoryConfig = {},
     previousMessages?: [string, string][]
   ) => {
     // Ajustar configuração conforme regras específicas dos modelos

@@ -25,13 +25,6 @@ const convertToMessageArray = (messages: Message[]): [string, string][] => {
   return messages.map(msg => [msg.role, msg.content]);
 };
 
-const convertToMessageObjects = (messages: [string, string][]): Message[] => {
-  return messages.map(([role, content]) => ({ 
-    role: role as 'user' | 'assistant' | 'thought' | 'system', 
-    content 
-  }));
-};
-
 const conversationService = {
   // Get all conversations for the current user
   getConversations: async (): Promise<Conversation[]> => {
