@@ -8,6 +8,9 @@ console.log('Environment variables loaded:');
 console.log('API_URL:', API_URL);
 console.log('FRONTEND_URL:', FRONTEND_URL);
 
+// Configurações globais do Axios para CORS
+axios.defaults.withCredentials = true;
+
 export const authService = {
   // Verifica se o usuário está autenticado
   isAuthenticated: () => {
@@ -21,7 +24,13 @@ export const authService = {
       const callbackUrl = `${API_URL}/auth/callback?code=${code}&redirect_uri=${encodeURIComponent(`${FRONTEND_URL}/auth/callback`)}`;
       console.log('Callback URL:', callbackUrl);
       
-      const response = await axios.get(callbackUrl);
+      const response = await axios.get(callbackUrl, {
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
       
       if (response.data && response.data.token) {
         localStorage.setItem('token', response.data.token);
