@@ -638,6 +638,44 @@ const Chat = () => {
               
               // Atualizar a lista de documentos novamente após iniciar o processamento
               await fetchConversationDocuments(threadId);
+              
+              // Configurar um polling temporário para verificar o progresso do documento
+              // Isso garante que o documento não ficará preso em 'pending'
+              let pollingCount = 0;
+              const maxPolls = 20; // Limitar a 20 tentativas (aproximadamente 2 minutos)
+              
+              const pollDocumentStatus = async () => {
+                pollingCount++;
+                try {
+                  // Buscar o documento atual para verificar seu status
+                  const updatedDoc = await documentService.getDocument(doc.id);
+                  await fetchConversationDocuments(threadId);
+                  
+                  // Se o documento está concluído ou falhou, parar o polling
+                  if (updatedDoc.index_status === 'completed' || updatedDoc.index_status === 'failed') {
+                    console.log(`Document processing ${updatedDoc.index_status} after ${pollingCount} polls`);
+                    return;
+                  }
+                  
+                  // Verificar se atingimos o número máximo de tentativas
+                  if (pollingCount >= maxPolls) {
+                    console.log(`Stopping document polling after ${maxPolls} attempts`);
+                    return;
+                  }
+                  
+                  // Continuar o polling
+                  setTimeout(pollDocumentStatus, 6000);
+                } catch (error) {
+                  console.error('Error polling document status:', error);
+                  // Em caso de erro, ainda tentar algumas vezes mais
+                  if (pollingCount < maxPolls) {
+                    setTimeout(pollDocumentStatus, 6000);
+                  }
+                }
+              };
+              
+              // Iniciar o polling após um breve intervalo
+              setTimeout(pollDocumentStatus, 6000);
             } catch (processingError) {
               console.error(`Error starting document processing:`, processingError);
             }
