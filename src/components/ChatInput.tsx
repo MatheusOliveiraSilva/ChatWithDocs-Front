@@ -35,13 +35,13 @@ const ChatInput = ({
     }
   };
   
-  // Determinar se o input deve estar desativado
-  const inputDisabled = isLoading || hasProcessingDocuments;
+  // Determinar se o botão de envio deve estar desabilitado
+  const sendButtonDisabled = message.trim() === '' || isLoading || hasProcessingDocuments;
   
   // Texto de placeholder com base no estado
   const placeholderText = hasProcessingDocuments 
-    ? "Aguarde a indexação dos documentos para enviar mensagens..." 
-    : "Digite sua mensagem aqui...";
+    ? "Waiting for document indexing to complete..." 
+    : "Type your message here...";
   
   return (
     <div className="chat-input-container">
@@ -56,12 +56,11 @@ const ChatInput = ({
         onChange={(e) => setMessage(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder={placeholderText}
-        disabled={inputDisabled}
       />
       <button 
         className="send-button"
         onClick={handleSubmit}
-        disabled={message.trim() === '' || inputDisabled}
+        disabled={sendButtonDisabled}
       >
         {isLoading ? (
           <div className="loading-spinner"></div>
