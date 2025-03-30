@@ -10,7 +10,7 @@ ChatWithDocs is an application that allows you to chat with your documents! You 
 
 ## Architecture Diagram
 
-[Placeholder for system architecture image]
+<img width="838" alt="image" src="https://github.com/user-attachments/assets/0f5f3ad0-536c-461d-b7f9-97f323446c96" />
 
 ## Main Components
 
