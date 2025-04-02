@@ -2,7 +2,7 @@
 
 This is the frontend application for ChatWithDocs, an interface to interact with documents through an intelligent chatbot.
 
-Access the application at: https://chatwithdocs-front.vercel.app
+Access the application at: https://chatwithdocs-front.vercel.app (not working right now, desactivated because of aws API billing, i'm saving money now D: ).
 
 ## What is ChatWithDocs?
 
