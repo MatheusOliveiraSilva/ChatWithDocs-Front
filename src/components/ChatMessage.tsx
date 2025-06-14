@@ -159,7 +159,7 @@ const ChatMessage = ({
               remarkPlugins={[remarkGfm]}
               components={{
                 // Customizar renderização de código
-                code: ({node, inline, className, children, ...props}: any) => {
+                code: ({node: _node, inline, className, children}: any) => {
                   const match = /language-(\w+)/.exec(className || '');
                   return !inline && match ? (
                     <SyntaxHighlighter

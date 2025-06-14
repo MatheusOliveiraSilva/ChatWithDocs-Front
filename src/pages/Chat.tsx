@@ -1,15 +1,15 @@
-import { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import conversationService, { Conversation, Message } from '../services/conversationService';
-import agentService, { LLMConfig, DEFAULT_LLM_CONFIG } from '../services/agentService';
+import conversationService, { Message, Conversation } from '../services/conversationService';
 import documentService, { Document } from '../services/documentService';
-import useThreadParams from '../hooks/useThreadParams';
-import ConversationSidebar from '../components/ConversationSidebar';
+import agentService, { LLMConfig, DEFAULT_LLM_CONFIG } from '../services/agentService';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
+import ConversationSidebar from '../components/ConversationSidebar';
+import DocumentBar from '../components/DocumentBar';
 import ModelConfigPanel from '../components/ModelConfigPanel';
 import ConfigButton from '../components/ConfigButton';
-import DocumentBar from '../components/DocumentBar';
+import useThreadParams from '../hooks/useThreadParams';
 import '../styles/Chat.css';
 
 const Chat = () => {
