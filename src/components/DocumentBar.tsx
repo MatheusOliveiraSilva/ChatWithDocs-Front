@@ -44,7 +44,7 @@ const DocumentBar: React.FC<DocumentBarProps> = ({
                 {doc.original_filename}
               </div>
               <div className="document-bar-item-size">
-                {formatFileSize(doc.file_size)}
+                {formatFileSize(doc.file_size || 0)}
               </div>
               {onRemoveDocument && (
                 <button 

@@ -1,8 +1,4 @@
-import axios from 'axios';
 import authService from './authService';
-import openaiService from './openaiService';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5005';
 
 // Types
 export interface Message {
@@ -25,125 +21,142 @@ const convertToMessageArray = (messages: Message[]): [string, string][] => {
   return messages.map(msg => [msg.role, msg.content]);
 };
 
-const convertToMessageObjects = (messages: [string, string][]): Message[] => {
-  return messages.map(([role, content]) => ({ 
-    role: role as 'user' | 'assistant' | 'thought' | 'system', 
-    content 
-  }));
+// Helper to generate conversation title from message
+const generateConversationTitle = (message: string): string => {
+  // Simple method to generate a title from the first message
+  const words = message.trim().split(' ');
+  
+  if (words.length <= 4) {
+    return message.length > 30 ? message.substring(0, 30) + '...' : message;
+  }
+  
+  return words.slice(0, 4).join(' ') + (words.length > 4 ? '...' : '');
 };
 
+// Serviço de conversas adaptado para localStorage (backend não suporta conversas)
 const conversationService = {
-  // Get all conversations for the current user
+  // Get all conversations for the current user (localStorage)
   getConversations: async (): Promise<Conversation[]> => {
     try {
-      const response = await axios.get(`${API_URL}/conversation`, {
-        headers: authService.getAuthHeader(),
-        withCredentials: true
-      });
+      const stored = localStorage.getItem('conversations');
+      const conversations: Conversation[] = stored ? JSON.parse(stored) : [];
       
-      return response.data.conversations;
+      // Ordenar por last_used descrescente
+      conversations.sort((a, b) => new Date(b.last_used).getTime() - new Date(a.last_used).getTime());
+      
+      return conversations;
     } catch (error) {
-      console.error('Error fetching conversations:', error);
-      throw error;
+      console.error('Error fetching conversations from localStorage:', error);
+      return [];
     }
   },
 
-  // Get a specific conversation by thread_id
+  // Get a specific conversation by thread_id (localStorage)
   getConversation: async (threadId: string): Promise<Conversation> => {
     try {
-      const response = await axios.get(`${API_URL}/conversation/${threadId}`, {
-        headers: authService.getAuthHeader(),
-        withCredentials: true
-      });
+      const conversations = await conversationService.getConversations();
+      const conversation = conversations.find(c => c.thread_id === threadId);
       
-      return response.data;
+      if (!conversation) {
+        throw new Error(`Conversation with thread_id ${threadId} not found`);
+      }
+      
+      return conversation;
     } catch (error) {
       console.error(`Error fetching conversation ${threadId}:`, error);
       throw error;
     }
   },
 
-  // Create a new conversation
+  // Create a new conversation (localStorage)
   createConversation: async (
     threadId: string,
     threadName: string,
     firstMessage: string
   ): Promise<Conversation> => {
     try {
-      // Generate a better conversation name using OpenAI
-      const aiGeneratedName = await openaiService.generateConversationSummary(firstMessage);
+      // Gerar um nome melhor baseado na mensagem
+      const finalThreadName = generateConversationTitle(firstMessage) || threadName;
       
-      // Use the AI-generated name or fall back to the original if generation fails
-      const finalThreadName = aiGeneratedName || threadName;
+      const conversation: Conversation = {
+        id: Date.now(), // ID único baseado em timestamp
+        user_id: 1, // ID fixo para demo-user
+        thread_id: threadId,
+        thread_name: finalThreadName,
+        messages: [['user', firstMessage]],
+        created_at: new Date().toISOString(),
+        last_used: new Date().toISOString()
+      };
       
-      const response = await axios.post(
-        `${API_URL}/conversation`,
-        {
-          thread_id: threadId,
-          thread_name: finalThreadName,
-          first_message_role: 'user',
-          first_message_content: firstMessage
-        },
-        {
-          headers: authService.getAuthHeader(),
-          withCredentials: true
-        }
-      );
+      // Salvar no localStorage
+      const conversations = await conversationService.getConversations();
+      conversations.unshift(conversation); // Adicionar no início
+      localStorage.setItem('conversations', JSON.stringify(conversations));
       
-      return response.data;
+      console.log('Conversa criada no localStorage:', conversation.thread_id);
+      return conversation;
     } catch (error) {
       console.error('Error creating conversation:', error);
       throw error;
     }
   },
 
-  // Update an existing conversation
+  // Update an existing conversation (localStorage)
   updateConversation: async (
     threadId: string,
     messages: Message[]
   ): Promise<Conversation> => {
     try {
+      const conversations = await conversationService.getConversations();
+      const index = conversations.findIndex(c => c.thread_id === threadId);
+      
+      if (index === -1) {
+        throw new Error(`Conversation with thread_id ${threadId} not found for update`);
+      }
+      
       const messageArray = convertToMessageArray(messages);
       
-      const response = await axios.patch(
-        `${API_URL}/conversation`,
-        {
-          thread_id: threadId,
-          messages: messageArray
-        },
-        {
-          headers: authService.getAuthHeader(),
-          withCredentials: true
-        }
-      );
+      // Atualizar a conversa
+      conversations[index] = {
+        ...conversations[index],
+        messages: messageArray,
+        last_used: new Date().toISOString()
+      };
       
-      return response.data;
+      // Salvar no localStorage
+      localStorage.setItem('conversations', JSON.stringify(conversations));
+      
+      console.log('Conversa atualizada no localStorage:', threadId);
+      return conversations[index];
     } catch (error) {
       console.error(`Error updating conversation ${threadId}:`, error);
       throw error;
     }
   },
 
-  // Delete a conversation
+  // Delete a conversation (localStorage)
   deleteConversation: async (threadId: string): Promise<boolean> => {
     try {
-      const response = await axios.delete(`${API_URL}/conversation/thread/${threadId}`, {
-        headers: authService.getAuthHeader(),
-        withCredentials: true
-      });
+      const conversations = await conversationService.getConversations();
+      const filteredConversations = conversations.filter(c => c.thread_id !== threadId);
       
-      console.log('Conversa e todos os recursos associados excluídos com sucesso:', response.data);
+      // Salvar a lista filtrada
+      localStorage.setItem('conversations', JSON.stringify(filteredConversations));
+      
+      // Também remover documentos associados
+      localStorage.removeItem(`docs_${threadId}`);
+      
+      console.log('Conversa e recursos associados removidos do localStorage:', threadId);
       return true;
     } catch (error) {
-      console.error(`Erro ao excluir conversa ${threadId} e recursos associados:`, error);
+      console.error(`Erro ao excluir conversa ${threadId}:`, error);
       throw error;
     }
   },
 
   // Helper to generate a unique thread ID
   generateThreadId: (): string => {
-    const sessionId = authService.getSessionId() || 'anonymous';
-    // Formato novo mais curto para o UUID
+    const sessionId = authService.getSessionId() || 'demo';
     const uuid = crypto.randomUUID 
       ? crypto.randomUUID().split('-')[0] // Usar apenas a primeira parte do UUID (8 caracteres)
       : Math.random().toString(36).substring(2, 10); // 8 caracteres alfanuméricos aleatórios
@@ -153,13 +166,36 @@ const conversationService = {
 
   // Helper to generate a thread name from the first message
   generateThreadName: (firstMessage: string): string => {
-    // This is just a fallback if the AI summary fails
-    // The actual summary will be generated by the OpenAI API
     const maxLength = 30;
     if (firstMessage.length <= maxLength) {
       return firstMessage;
     }
     return firstMessage.substring(0, maxLength) + '...';
+  },
+
+  // Função para sincronizar com o backend (futura implementação)
+  syncWithBackend: async (): Promise<void> => {
+    // Esta função poderia ser implementada no futuro para sincronizar
+    // as conversas do localStorage com um backend que suporte gestão de conversas
+    console.log('Sincronização com backend não implementada - usando apenas localStorage');
+  },
+
+  // Função para exportar conversas
+  exportConversations: async (): Promise<string> => {
+    const conversations = await conversationService.getConversations();
+    return JSON.stringify(conversations, null, 2);
+  },
+
+  // Função para importar conversas
+  importConversations: async (jsonData: string): Promise<void> => {
+    try {
+      const conversations: Conversation[] = JSON.parse(jsonData);
+      localStorage.setItem('conversations', JSON.stringify(conversations));
+      console.log('Conversas importadas com sucesso:', conversations.length);
+    } catch (error) {
+      console.error('Erro ao importar conversas:', error);
+      throw new Error('Formato de dados inválido para importação');
+    }
   }
 };
 

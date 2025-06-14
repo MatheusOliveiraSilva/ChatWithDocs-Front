@@ -14,7 +14,6 @@ interface DocumentUploadProps {
 const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsChanged, onNewConversationCreated }) => {
   const [uploadedDocuments, setUploadedDocuments] = useState<Document[]>([]);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showDocumentArea, setShowDocumentArea] = useState(false);
   // Novo estado para rastrear documentos que começaram a ser processados nesta sessão
@@ -28,11 +27,9 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
   const fetchUploadedDocuments = async () => {
     if (!threadId) {
       setUploadedDocuments([]);
-      setIsLoading(false);
       return;
     }
     
-    setIsLoading(true);
     try {
       const result = await documentService.getConversationDocuments(threadId);
       
@@ -81,8 +78,6 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
       
     } catch (error) {
       console.error('Error fetching documents:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -149,11 +144,6 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
     doc => doc.index_status === 'pending' || doc.index_status === 'processing'
   );
   
-  // Check for recently completed documents
-  const completedDocuments = uploadedDocuments.filter(
-    doc => doc.index_status === 'completed'
-  );
-
   // Function to manually process a document
   const handleProcessDocument = async (doc: Document) => {
     try {
@@ -232,13 +222,6 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({ threadId, onDocumentsCh
         )}
       </div>
     );
-  };
-
-  // Função para clear file input so it can be reused for the same file
-  const clearFileInput = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   // Função para processar os arquivos selecionados

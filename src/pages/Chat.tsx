@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import conversationService, { Conversation, Message } from '../services/conversationService';
-import authService from '../services/authService';
 import agentService, { LLMConfig, DEFAULT_LLM_CONFIG } from '../services/agentService';
 import documentService, { Document } from '../services/documentService';
 import useThreadParams from '../hooks/useThreadParams';
@@ -15,7 +14,7 @@ import '../styles/Chat.css';
 
 const Chat = () => {
   // Get the threadId from the URL if it exists using our custom hook
-  const { threadId: urlThreadId, navigateToThread, navigateToNewChat, replaceThreadInUrl } = useThreadParams();
+  const { threadId: urlThreadId, navigateToNewChat, replaceThreadInUrl } = useThreadParams();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
@@ -25,13 +24,15 @@ const Chat = () => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [llmConfig, setLLMConfig] = useState<LLMConfig>(DEFAULT_LLM_CONFIG);
   const [isConfigPanelExpanded, setIsConfigPanelExpanded] = useState(false);
-  const [currentThinking, setCurrentThinking] = useState('');
-  const [isThinkingStreaming, setIsThinkingStreaming] = useState(false);
+  const [currentThinking, setCurrentThinking] = useState<string>('');
+  const [isThinkingStreaming, setIsThinkingStreaming] = useState<boolean>(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const configPanelRef = useRef<HTMLDivElement>(null);
   const [uploadedDocuments, setUploadedDocuments] = useState<Document[]>([]);
+  // Estado para controlar quando ferramentas estão sendo executadas
+  const [currentToolExecution, setCurrentToolExecution] = useState<string | null>(null);
 
   // Função para verificar se há documentos em processamento
   const hasProcessingDocuments = () => {
@@ -110,11 +111,6 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleLogout = async () => {
-    await authService.logout();
-    navigate('/');
-  };
-
   const fetchConversations = async () => {
     try {
       setLoading(true);
@@ -124,13 +120,6 @@ const Chat = () => {
     } catch (error: any) {
       console.error('Failed to fetch conversations:', error);
       setLoading(false);
-      
-      // Check if error is due to authentication
-      if (error.response && error.response.status === 401) {
-        // Redirect to login page
-        authService.logout();
-        navigate('/');
-      }
     }
   };
 
@@ -241,9 +230,17 @@ const Chat = () => {
               // Atualizar o estado de pensamento
               setIsThinkingStreaming(true);
               setCurrentThinking(prev => prev + chunk.content);
-            } else if (chunk.type === 'text') {
-              // Finalizar o streaming de pensamentos, se houver
+            } else if (chunk.type === 'tool_execution') {
+              // Nova ferramenta sendo executada
+              setCurrentToolExecution(chunk.tool_info?.node || chunk.content);
+              setIsThinkingStreaming(false); // Para de mostrar pensamento durante execução de ferramenta
+            } else if (chunk.type === 'end' && chunk.meta?.tool_finished) {
+              // Ferramenta terminou de executar
+              setCurrentToolExecution(null);
+            } else if (chunk.type === 'text' || chunk.type === 'token') {
+              // Finalizar o streaming de pensamentos e execução de ferramentas
               setIsThinkingStreaming(false);
+              setCurrentToolExecution(null);
               
               // Atualizar a mensagem do assistente com o novo conteúdo
               streamingMessage.content += chunk.content;
@@ -384,9 +381,17 @@ const Chat = () => {
               // Atualizar o estado de pensamento
               setIsThinkingStreaming(true);
               setCurrentThinking(prev => prev + chunk.content);
-            } else if (chunk.type === 'text') {
-              // Finalizar o streaming de pensamentos, se houver
+            } else if (chunk.type === 'tool_execution') {
+              // Nova ferramenta sendo executada
+              setCurrentToolExecution(chunk.tool_info?.node || chunk.content);
+              setIsThinkingStreaming(false); // Para de mostrar pensamento durante execução de ferramenta
+            } else if (chunk.type === 'end' && chunk.meta?.tool_finished) {
+              // Ferramenta terminou de executar
+              setCurrentToolExecution(null);
+            } else if (chunk.type === 'text' || chunk.type === 'token') {
+              // Finalizar o streaming de pensamentos e execução de ferramentas
               setIsThinkingStreaming(false);
+              setCurrentToolExecution(null);
               
               // Atualizar a mensagem do assistente com o novo conteúdo
               streamingMessage.content += chunk.content;
@@ -862,7 +867,6 @@ const Chat = () => {
         activeThreadId={activeConversation?.thread_id || null}
         onNewChat={handleNewChat}
         onDeleteConversation={handleDeleteConversation}
-        onLogout={handleLogout}
         loading={loading}
       />
       
@@ -897,6 +901,8 @@ const Chat = () => {
                     isStreaming={sendingMessage && index === messages.length - 1 && message.role === 'assistant'}
                     thinking={index === messages.length - 1 && message.role === 'assistant' ? currentThinking : undefined}
                     isThinkingStreaming={isThinkingStreaming}
+                    toolExecution={index === messages.length - 1 && message.role === 'assistant' ? currentToolExecution : undefined}
+                    isToolExecuting={currentToolExecution !== null && index === messages.length - 1 && message.role === 'assistant'}
                   />
                 ))}
                 <div ref={messagesEndRef}></div>

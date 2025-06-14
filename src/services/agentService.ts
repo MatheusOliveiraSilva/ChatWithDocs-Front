@@ -1,14 +1,134 @@
-import axios from 'axios';
-import authService from './authService';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5005';
+// Função para converter formato Python dict para JSON válido
+const convertPythonToJson = (pythonStr: string): string => {
+  try {
+    // Verificar se já é JSON válido
+    if (pythonStr.startsWith('{') && pythonStr.endsWith('}')) {
+      try {
+        JSON.parse(pythonStr);
+        return pythonStr; // Já é JSON válido
+      } catch {
+        // Não é JSON válido, continuar processamento
+      }
+    }
+    
+    // Extrair dados específicos do formato LangGraph
+    const contentMatch = pythonStr.match(/'content':\s*AIMessageChunk\([^)]*content='([^']*)'[^)]*\)/);
+    const metadataMatch = pythonStr.match(/'metadata':\s*\{([^}]+)\}/);
+    
+    let content = '';
+    if (contentMatch) {
+      content = contentMatch[1];
+      // Decodificar caracteres escapados do Python
+      content = content
+        .replace(/\\n/g, '\n')      // Converter \n literal para quebra de linha real
+        .replace(/\\t/g, '\t')      // Converter \t literal para tab real
+        .replace(/\\r/g, '\r')      // Converter \r literal para carriage return real
+        .replace(/\\'/g, "'")       // Converter \' literal para aspas simples
+        .replace(/\\"/g, '"')       // Converter \" literal para aspas duplas
+        .replace(/\\\\/g, '\\');    // Converter \\ literal para barra invertida simples
+    }
+    
+    let metadata: Record<string, any> = {};
+    if (metadataMatch) {
+      // Processar metadata Python dict para JSON
+      const metadataStr = metadataMatch[1];
+      const metadataPairs = metadataStr.split(',');
+      
+      for (const pair of metadataPairs) {
+        const [key, value] = pair.split(':').map(s => s.trim());
+        if (key && value) {
+          // Remover aspas simples e processar diferentes tipos
+          const cleanKey = key.replace(/'/g, '');
+          let cleanValue = value.replace(/'/g, '');
+          
+          // Converter números
+          if (!isNaN(Number(cleanValue))) {
+            metadata[cleanKey] = Number(cleanValue);
+          } 
+          // Converter booleanos
+          else if (cleanValue === 'True') {
+            metadata[cleanKey] = true;
+          } else if (cleanValue === 'False') {
+            metadata[cleanKey] = false;
+          } else if (cleanValue === 'None') {
+            metadata[cleanKey] = null;
+          } 
+          // Manter como string
+          else {
+            metadata[cleanKey] = cleanValue.replace(/"/g, '');
+          }
+        }
+      }
+    }
+    
+    // Verificar se há response_metadata no AIMessageChunk
+    const responseMetadataMatch = pythonStr.match(/response_metadata=\{([^}]*)\}/);
+    let responseMetadata: Record<string, any> = {};
+    
+    if (responseMetadataMatch) {
+      const responseMetadataStr = responseMetadataMatch[1];
+      const pairs = responseMetadataStr.split(',');
+      
+      for (const pair of pairs) {
+        const [key, value] = pair.split(':').map(s => s.trim());
+        if (key && value) {
+          const cleanKey = key.replace(/'/g, '').replace(/"/g, '');
+          const cleanValue = value.replace(/'/g, '').replace(/"/g, '');
+          responseMetadata[cleanKey] = cleanValue;
+        }
+      }
+    }
+    
+    // Criar estrutura JSON
+    const result = {
+      content: {
+        content: content,
+        response_metadata: responseMetadata
+      },
+      metadata: metadata
+    };
+    
+    return JSON.stringify(result);
+  } catch (error) {
+    console.error('Erro ao converter Python para JSON:', error);
+    console.error('String original:', pythonStr.substring(0, 200) + '...');
+    
+    // Fallback: tentar extrair apenas o conteúdo de texto básico
+    const basicContentMatch = pythonStr.match(/content='([^']*)'/);
+    if (basicContentMatch) {
+      let fallbackContent = basicContentMatch[1];
+      // Decodificar caracteres escapados do Python
+      fallbackContent = fallbackContent
+        .replace(/\\n/g, '\n')      // Converter \n literal para quebra de linha real
+        .replace(/\\t/g, '\t')      // Converter \t literal para tab real
+        .replace(/\\r/g, '\r')      // Converter \r literal para carriage return real
+        .replace(/\\'/g, "'")       // Converter \' literal para aspas simples
+        .replace(/\\"/g, '"')       // Converter \" literal para aspas duplas
+        .replace(/\\\\/g, '\\');    // Converter \\ literal para barra invertida simples
+      
+      return JSON.stringify({
+        content: { content: fallbackContent },
+        metadata: { langgraph_node: 'agent' }
+      });
+    }
+    
+    // Se tudo falhar, retornar estrutura vazia
+    return JSON.stringify({
+      content: { content: '' },
+      metadata: { langgraph_node: 'agent' }
+    });
+  }
+};
 
 // Types
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
 export interface LLMConfig {
-  model_id: string;
+  model_id?: string;
   provider: string;
+  model: string; // Campo usado pelo novo backend
   reasoning_effort?: ReasoningEffort;
   think_mode?: boolean;
   temperature?: number;
@@ -40,31 +160,32 @@ export interface AgentResponse {
 // Interface para streaming de chunks de resposta
 export interface StreamedChunk {
   content: string;
-  type: 'thinking' | 'text' | 'error' | 'end';
+  type: 'thinking' | 'text' | 'error' | 'end' | 'token' | 'tool_execution';
   meta?: any;
+  tool_info?: {
+    node: string;
+    step: number;
+  };
 }
 
 // Available models by provider
 export const AVAILABLE_MODELS = {
-  openai: [
-    { id: 'o3-mini', name: 'O3-Mini' },
-    { id: 'o1', name: 'O1' },
+  azure: [
     { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'gpt-4', name: 'GPT-4' },
   ],
-  anthropic: [
-    { id: 'claude-3-7-sonnet', name: 'Claude 3.7 Sonnet' },
-    { id: 'claude-3-5-haiku', name: 'Claude 3.5 Haiku' },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' }
+  openai: [
+    { id: 'gpt-4o', name: 'GPT-4o' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
+    { id: 'gpt-4', name: 'GPT-4' },
   ]
 };
 
-// Default configuration
+// Default configuration (adaptado para o backend real)
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
-  model_id: 'gpt-4o',
   provider: 'openai',
-  reasoning_effort: 'medium',
-  think_mode: false,
+  model: 'gpt-4o',
   temperature: 0.7
 };
 
@@ -78,127 +199,103 @@ const agentService = {
     threadName?: string,
     memoryConfig: MemoryConfig = {}
   ): Promise<AgentResponse> => {
-    try {
-      // Ajustar configuração conforme regras específicas dos modelos
-      const adjustedConfig = { ...llmConfig };
+    // Este método agora é um wrapper para o streaming
+    return new Promise((resolve, reject) => {
+      let fullResponse = '';
       
-      // Para Claude Sonnet, quando think_mode está ativado, a temperatura deve ser 1
-      if (adjustedConfig.provider === 'anthropic' && 
-          adjustedConfig.model_id === 'claude-3-7-sonnet' && 
-          adjustedConfig.think_mode) {
-        console.log('Detectado Claude Sonnet com think_mode ativado, fixando temperatura em 1');
-        adjustedConfig.temperature = 1;
-      }
-    
-      // Primeiro verifica se a thread existe via conversation API
-      let threadExists = false;
-      
-      try {
-        await axios.get(`${API_URL}/conversation/${threadId}`, {
-          headers: authService.getAuthHeader(),
-          withCredentials: true
-        });
-        threadExists = true;
-      } catch (error) {
-        // Se a conversa não existe, é normal receber um erro 404
-        // Vamos criar a conversa apenas se recebermos uma resposta do agente
-        console.log('Conversa não encontrada, será criada após resposta do agente');
-      }
-      
-      // Invoca o agente
-      const response = await axios.post(
-        `${API_URL}/agent/chat/query_stream`,
-        {
-          thread_id: threadId,
-          input: message,
-          thread_name: threadName,
-          llm_config: adjustedConfig,
-          memory_config: memoryConfig
+      agentService.streamAgent(
+        threadId,
+        message,
+        llmConfig,
+        (chunk) => {
+          if (chunk.type === 'token' || chunk.type === 'text') {
+            fullResponse += chunk.content;
+          }
         },
-        {
-          headers: authService.getAuthHeader(),
-          withCredentials: true
-        }
+        () => {
+          // Simular resposta no formato antigo
+          resolve({
+            thread_id: threadId,
+            response: fullResponse,
+            updated_conversation: {
+              id: Date.now(),
+              thread_id: threadId,
+              messages: [['user', message], ['assistant', fullResponse]],
+              last_used: new Date().toISOString()
+            }
+          });
+        },
+        reject,
+        threadName,
+        memoryConfig
       );
-      
-      // Se não existia conversa antes e temos uma resposta, podemos criar a conversa agora
-      if (!threadExists && response.data.updated_conversation) {
-        // A conversa será criada automaticamente pelo backend com a primeira mensagem
-        console.log('Conversa criada com sucesso:', response.data.updated_conversation.thread_id);
-      }
-      
-      return response.data;
-    } catch (error) {
-      console.error('Error invoking agent:', error);
-      throw error;
-    }
+    });
   },
   
-  // Invocar agente com streaming de resposta
+  // Invocar agente com streaming de resposta (adaptado para backend real com LangGraph)
   streamAgent: (
-    threadId: string,
+    _threadId: string, // Backend real não usa thread_id
     message: string,
     llmConfig: LLMConfig = DEFAULT_LLM_CONFIG,
     onChunk: (chunk: StreamedChunk) => void,
     onComplete: (fullResponse: string) => void,
     onError: (error: any) => void,
     threadName?: string,
-    memoryConfig: MemoryConfig = {},
+    _memoryConfig: MemoryConfig = {},
     previousMessages?: [string, string][]
   ) => {
-    // Ajustar configuração conforme regras específicas dos modelos
-    const adjustedConfig = { ...llmConfig };
+    // Adaptar configuração para o formato do backend real
+    const adaptedConfig = {
+      provider: llmConfig.provider || 'openai',
+      model: llmConfig.model || llmConfig.model_id || 'gpt-4o'
+    };
     
-    // Para Claude Sonnet, quando think_mode está ativado, a temperatura deve ser 1
-    if (adjustedConfig.provider === 'anthropic' && 
-        adjustedConfig.model_id === 'claude-3-7-sonnet' && 
-        adjustedConfig.think_mode) {
-      console.log('Detectado Claude Sonnet com think_mode ativado, fixando temperatura em 1');
-      adjustedConfig.temperature = 1;
+    // Construir histórico de mensagens no formato esperado pelo backend real
+    const messages: { role: string; content: string }[] = [];
+    
+    // Adicionar mensagens anteriores se fornecidas (converter formato)
+    if (previousMessages && previousMessages.length > 0) {
+      previousMessages.forEach(([role, content]) => {
+        messages.push({ role, content });
+      });
     }
     
-    // Criar corpo da requisição para o novo formato
+    // Adicionar a nova mensagem do usuário
+    messages.push({ role: 'user', content: message });
+    
+    // Criar corpo da requisição para o backend real (sem thread_id)
     const body = JSON.stringify({
-      input: message,
-      thread_id: threadId,
-      thread_name: threadName,
-      llm_config: adjustedConfig,
-      previous_messages: previousMessages  // Adicionando mensagens anteriores
+      messages: messages,
+      llm_config: adaptedConfig
     });
     
-    console.log(`Iniciando streaming para thread: ${threadId}`, {
+    console.log(`Iniciando streaming LangGraph:`, {
       threadName,
-      modelId: adjustedConfig.model_id,
-      provider: adjustedConfig.provider,
-      thinkMode: adjustedConfig.think_mode,
-      temperature: adjustedConfig.temperature,
-      previousMessagesCount: previousMessages?.length || 0
+      provider: adaptedConfig.provider,
+      model: adaptedConfig.model,
+      messagesCount: messages.length
     });
     
-    // Obter token de autenticação
-    const token = localStorage.getItem('token');
-    
-    // Conectar ao endpoint de streaming
+    // Conectar ao endpoint correto do backend real
     let fullResponse = '';
-    let currentThinking = ''; // Armazenar pensamentos para Claude 3.7 Sonnet
+    let currentToolExecution: string | null = null;
     
     const fetchOptions = {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
+        'Accept': 'text/event-stream'
       },
       body: body,
-      credentials: 'include' as RequestCredentials,
     };
     
-    fetch(`${API_URL}/agent/chat/query_stream`, fetchOptions)
+    fetch(`${API_URL}/agent/chat`, fetchOptions)
       .then(response => {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        console.log('Conexão estabelecida, aguardando chunks...');
+        console.log('Conexão LangGraph estabelecida, aguardando chunks...');
         
         const reader = response.body!.getReader();
         const decoder = new TextDecoder();
@@ -206,79 +303,146 @@ const agentService = {
         function processStream(): Promise<void> {
           return reader.read().then(({ value, done }) => {
             if (done) {
-              console.log('Stream finalizado, resposta completa:', fullResponse.substring(0, 30) + '...');
-              // Ao terminar, verificar se temos conteúdo válido
+              console.log('Stream LangGraph finalizado, resposta completa:', fullResponse.substring(0, 50) + '...');
+              
+              // Se ainda está executando ferramenta, notificar que terminou
+              if (currentToolExecution) {
+                onChunk({
+                  content: '',
+                  type: 'end',
+                  meta: { tool_finished: currentToolExecution }
+                });
+                currentToolExecution = null;
+              }
+              
               if (fullResponse.trim().length > 0) {
                 onComplete(fullResponse);
               } else {
-                // Se não tiver conteúdo válido, tratar como erro
-                console.error('A resposta do servidor está vazia');
+                console.error('A resposta do LangGraph está vazia');
                 onError(new Error("A resposta do servidor está vazia"));
               }
               return;
             }
             
             const chunk = decoder.decode(value);
-            console.log('Chunk bruto recebido:', chunk.substring(0, 50) + (chunk.length > 50 ? '...' : ''));
+            console.log('Chunk LangGraph bruto:', chunk.substring(0, 100) + (chunk.length > 100 ? '...' : ''));
             
-            const lines = chunk.split('\n\n');
+            const lines = chunk.split('\n');
             
             for (const line of lines) {
               if (line.trim() && line.startsWith('data: ')) {
-                const jsonStr = line.replace('data: ', '');
+                const rawData = line.replace('data: ', '');
+                
+                // Verificar se é o marcador de fim
+                if (rawData === '[DONE]') {
+                  console.log('Marcador [DONE] recebido do LangGraph');
+                  onComplete(fullResponse);
+                  return;
+                }
+                
                 try {
+                  // Converter formato Python dict para JSON válido
+                  const jsonStr = convertPythonToJson(rawData);
                   const data = JSON.parse(jsonStr);
-                  console.log('Dados do streaming:', data);
+                  
+                  console.log('Dados LangGraph processados:', data);
                   
                   if (data.error) {
-                    console.error('Erro recebido do servidor:', data.error);
+                    console.error('Erro recebido do LangGraph:', data.error);
                     onError(new Error(data.error));
                     return;
                   }
                   
-                  if (data.content === '[DONE]' || data.type === 'end') {
-                    console.log('Marcador de fim recebido, finalizando streaming');
-                    onComplete(fullResponse);
-                    return;
-                  }
-                  
-                  // Processar diferentes tipos de chunks
-                  if (data.type === 'thinking') {
-                    // Acumular pensamentos separadamente
-                    currentThinking += data.content;
-                    console.log('Pensamento recebido:', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
+                  // Processar formato LangGraph: {'content': AIMessageChunk(...), 'metadata': {...}}
+                  if (data.content && data.metadata) {
+                    const langGraphNode = data.metadata.langgraph_node;
+                    const langGraphStep = data.metadata.langgraph_step;
                     
-                    // Notificar o chunk como thinking
-                    onChunk({
-                      content: data.content,
-                      type: 'thinking',
-                      meta: data.meta
-                    });
-                  } else if (data.type === 'text') {
-                    // Resposta final
-                    console.log('Texto final recebido:', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
-                    fullResponse += data.content;
+                    // Verificar se é execução de ferramenta (não é node 'agent')
+                    if (langGraphNode && langGraphNode !== 'agent') {
+                      // Se mudou de ferramenta, notificar fim da anterior
+                      if (currentToolExecution && currentToolExecution !== langGraphNode) {
+                        onChunk({
+                          content: '',
+                          type: 'end',
+                          meta: { tool_finished: currentToolExecution }
+                        });
+                      }
+                      
+                      // Se é uma nova ferramenta, notificar início
+                      if (currentToolExecution !== langGraphNode) {
+                        currentToolExecution = langGraphNode;
+                        onChunk({
+                          content: `Executando ferramenta: ${langGraphNode}`,
+                          type: 'tool_execution',
+                          tool_info: {
+                            node: langGraphNode,
+                            step: langGraphStep
+                          }
+                        });
+                      }
+                      
+                      // Para ferramentas, não processar o conteúdo como texto normal
+                      continue;
+                    } else {
+                      // Se era execução de ferramenta e agora voltou ao agent, notificar fim
+                      if (currentToolExecution) {
+                        onChunk({
+                          content: '',
+                          type: 'end',
+                          meta: { tool_finished: currentToolExecution }
+                        });
+                        currentToolExecution = null;
+                      }
+                    }
                     
-                    // Notificar o chunk como texto
-                    onChunk({
-                      content: data.content,
-                      type: 'text',
-                      meta: data.meta
-                    });
-                  } else if (data.content) {
-                    // Fallback para formatos antigos
-                    console.log('Conteúdo recebido (formato antigo):', data.content.substring(0, 30) + (data.content.length > 30 ? '...' : ''));
-                    fullResponse += data.content;
+                    // Extrair conteúdo do AIMessageChunk
+                    let textContent = '';
+                    if (data.content && typeof data.content === 'object' && data.content.content) {
+                      textContent = data.content.content;
+                    }
                     
-                    // Notificar como texto padrão
-                    onChunk({
-                      content: data.content,
-                      type: 'text',
-                      meta: data.meta
-                    });
+                    // Verificar se terminou (finish_reason)
+                    const finishReason = data.content?.response_metadata?.finish_reason;
+                    if (finishReason === 'stop') {
+                      console.log('LangGraph indicou finish_reason=stop');
+                      // Não retornar aqui, processar o último chunk primeiro
+                    }
+                    
+                    // Se há conteúdo de texto, processar
+                    if (textContent) {
+                      console.log('Token LangGraph recebido:', textContent);
+                      fullResponse += textContent;
+                      
+                      // Notificar o chunk como token
+                      onChunk({
+                        content: textContent,
+                        type: 'token',
+                        meta: {
+                          node: langGraphNode,
+                          step: langGraphStep,
+                          finish_reason: finishReason
+                        }
+                      });
+                    }
+                    
+                    // Se terminou, finalizar
+                    if (finishReason === 'stop') {
+                      console.log('Finalizando por finish_reason=stop');
+                      onComplete(fullResponse);
+                      return;
+                    }
                   }
                 } catch (e) {
-                  console.warn('Failed to parse JSON:', jsonStr, e);
+                  console.warn('Falha ao processar dados LangGraph:', rawData.substring(0, 100), e);
+                  // Se não conseguir fazer parse, tratar como texto simples (fallback)
+                  if (rawData.trim() && rawData !== '[DONE]') {
+                    fullResponse += rawData;
+                    onChunk({
+                      content: rawData,
+                      type: 'text'
+                    });
+                  }
                 }
               }
             }
@@ -286,11 +450,11 @@ const agentService = {
             return processStream();
           })
           .catch(error => {
-            console.error('Error processing stream:', error);
+            console.error('Erro processando stream LangGraph:', error);
             
             // Se já temos algum conteúdo quando ocorrer o erro, retornar o que temos
             if (fullResponse.trim().length > 0) {
-              console.log('Erro durante streaming, mas retornando resposta parcial:', fullResponse.substring(0, 30) + '...');
+              console.log('Erro durante streaming LangGraph, retornando resposta parcial:', fullResponse.substring(0, 50) + '...');
               onComplete(fullResponse);
             } else {
               onError(error);
@@ -301,7 +465,7 @@ const agentService = {
         return processStream();
       })
       .catch(error => {
-        console.error('Error in streaming, sem conexão:', error);
+        console.error('Erro conectando ao LangGraph:', error);
         onError(error);
       });
   }

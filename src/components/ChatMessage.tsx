@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Message } from '../services/conversationService';
 import '../styles/ChatMessage.css';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -12,14 +13,8 @@ interface ChatMessageProps {
   isThinkingStreaming?: boolean; // Se o pensamento ainda está sendo streamado
   previousMessage?: Message | null; // Mensagem anterior, para associar pensamentos a mensagens de assistente
   nextMessage?: Message | null; // Próxima mensagem, para associar pensamentos a mensagens de assistente
-}
-
-// Interface para os props do componente de código
-interface CodeProps {
-  node?: any;
-  inline?: boolean;
-  className?: string;
-  children: React.ReactNode;
+  toolExecution?: string | null; // Nome da ferramenta sendo executada
+  isToolExecuting?: boolean; // Se uma ferramenta está sendo executada
 }
 
 const ChatMessage = ({ 
@@ -27,8 +22,9 @@ const ChatMessage = ({
   isStreaming = false, 
   thinking, 
   isThinkingStreaming = false,
-  previousMessage,
-  nextMessage
+  nextMessage,
+  toolExecution,
+  isToolExecuting = false
 }: ChatMessageProps) => {
   const isUser = message.role === 'user';
   const isThought = message.role === 'thought';
@@ -142,34 +138,51 @@ const ChatMessage = ({
           </div>
         )}
         
+        {/* Feedback visual de execução de ferramentas */}
+        {isToolExecuting && toolExecution && (
+          <div className="tool-execution-container">
+            <div className="tool-execution-content">
+              <div className="tool-execution-spinner"></div>
+              <span className="tool-execution-text">
+                Executando ferramenta: <strong>{toolExecution}</strong>
+              </span>
+            </div>
+          </div>
+        )}
+        
         {/* Conteúdo da mensagem com suporte a Markdown avançado */}
         <div className="message-text">
           {isUser ? (
             message.content
           ) : (
             <ReactMarkdown
-              children={message.content}
+              remarkPlugins={[remarkGfm]}
               components={{
-                // @ts-ignore - ignorando erros de tipo para simplificar
-                code: ({node, inline, className, children, ...props}) => {
+                // Customizar renderização de código
+                code: ({node, inline, className, children, ...props}: any) => {
                   const match = /language-(\w+)/.exec(className || '');
                   return !inline && match ? (
                     <SyntaxHighlighter
-                      style={vscDarkPlus}
+                      style={vscDarkPlus as any}
                       language={match[1]}
                       PreTag="div"
-                      {...props}
                     >
                       {String(children).replace(/\n$/, '')}
                     </SyntaxHighlighter>
                   ) : (
-                    <code className={className} {...props}>
+                    <code className={className}>
                       {children}
                     </code>
                   );
-                }
+                },
+                // Customizar renderização de parágrafos para melhor espaçamento
+                p: ({children}) => <p style={{marginBottom: '0.8rem'}}>{children}</p>,
+                // Customizar renderização de quebras de linha
+                br: () => <br />,
               }}
-            />
+            >
+              {message.content}
+            </ReactMarkdown>
           )}
         </div>
       </div>

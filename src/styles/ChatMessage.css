@@ -71,7 +71,6 @@
 .message-text {
   color: #E2E8F0;
   line-height: 1.5;
-  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -121,6 +120,29 @@
   color: #e2e8f0;
 }
 
+.message-text p {
+  margin: 0.8rem 0;
+  line-height: 1.6;
+}
+
+.message-text p:first-child {
+  margin-top: 0;
+}
+
+.message-text p:last-child {
+  margin-bottom: 0;
+}
+
+.message-text strong {
+  font-weight: bold;
+  color: #f7fafc;
+}
+
+.message-text em {
+  font-style: italic;
+  color: #e2e8f0;
+}
+
 .message-text ol, .message-text ul {
   margin: 0.5rem 0;
   padding-left: 1.5rem;
@@ -128,6 +150,7 @@
 
 .message-text li {
   margin: 0.3rem 0;
+  line-height: 1.5;
 }
 
 .message-text a {
@@ -286,4 +309,49 @@
   border-radius: 8px;
   padding: 10px;
   margin-bottom: 15px;
+}
+
+/* Estilos para execução de ferramentas */
+.tool-execution-container {
+  margin-top: 8px;
+  margin-bottom: 12px;
+  width: 100%;
+  padding: 12px;
+  background-color: #2a4365;
+  border: 1px solid #3182ce;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+}
+
+.tool-execution-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.tool-execution-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #4299e1;
+  border-top: 2px solid transparent;
+  border-radius: 50%;
+  animation: tool-spinner 1s linear infinite;
+}
+
+.tool-execution-text {
+  color: #bee3f8;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.tool-execution-text strong {
+  color: #90cdf4;
+  font-weight: 600;
+}
+
+@keyframes tool-spinner {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
