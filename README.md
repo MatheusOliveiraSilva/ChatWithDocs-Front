@@ -5,10 +5,11 @@ A modern web application that allows users to chat intelligently with their docu
 ## Features
 
 - Dark mode modern UI
-- Authentication via Auth0
 - Chat with documents using AI
-- Document source tracking
+- Document upload and processing
 - Conversation history
+- Real-time streaming responses
+- Multiple document formats support (PDF, DOCX, TXT, etc.)
 
 ## Setup and Installation
 
@@ -23,27 +24,22 @@ A modern web application that allows users to chat intelligently with their docu
    npm install
    ```
 
-3. Configure environment variables
-   - Copy `.env.example` to `.env`
+3. Configure environment variables (optional)
+   - Create a `.env` file in the root directory if you need to customize the API URL:
    ```bash
-   cp .env.example .env
+   # Backend API URL (default: http://localhost:8000)
+   VITE_API_URL=http://localhost:8000
    ```
-   - Edit `.env` file with appropriate values:
-     - `VITE_API_URL`: URL of the backend API (default: http://0.0.0.0:5005)
-     - `VITE_FRONTEND_URL`: URL of the frontend application (default: http://localhost:5173)
+   - If no `.env` file is provided, the application will use `http://localhost:8000` as the default backend URL.
 
 4. Start the development server
    ```bash
    npm run dev
    ```
 
-## Authentication Setup
+## Environment Variables
 
-To ensure proper authentication:
-
-1. **Backend Configuration**: The backend API must be configured to accept redirect URIs from the frontend application. Make sure the backend Auth0 configuration includes `http://localhost:5173/auth/callback` (or your frontend URL) as an allowed callback URL.
-
-2. **Auth0 Configuration**: In your Auth0 Dashboard, you need to add the frontend URL (`http://localhost:5173`) to the "Allowed Web Origins" and `http://localhost:5173/auth/callback` to the "Allowed Callback URLs".
+- `VITE_API_URL`: URL of the backend API (default: `http://localhost:8000`)
 
 ## Building for Production
 
@@ -55,9 +51,9 @@ The build output will be in the `dist` folder ready for deployment.
 
 ## Technology Stack
 
-- React
+- React 18
 - TypeScript
 - Vite
 - React Router for navigation
-- Axios for API requests
-- CSS for styling (minimalist design)
+- Modern CSS for styling
+- Real-time streaming with Server-Sent Events
