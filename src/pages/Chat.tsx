@@ -358,11 +358,28 @@ const Chat = () => {
             
             // Finalizar o estado de envio
             setSendingMessage(false);
-          }
+          },
+          // Parâmetros adicionais
+          undefined,  // threadName é undefined para nova conversa
+          {},         // memory_config vazio
+          []          // ✅ NOVA CONVERSA: histórico vazio
         );
       } else {
         // Conversa existente
         const threadId = activeConversation.thread_id;
+        
+        // ✅ PREPARAR HISTÓRICO: Converter mensagens para o formato esperado pelo backend
+        const messageHistory: [string, string][] = [];
+        
+        // Filtrar mensagens de 'thought' do histórico (elas não devem ir para o backend)
+        const filteredMessages = messages.filter(msg => msg.role !== 'thought');
+        
+        // Converter para o formato [role, content]
+        filteredMessages.forEach(msg => {
+          messageHistory.push([msg.role, msg.content]);
+        });
+        
+        console.log('Enviando histórico de mensagens:', messageHistory.length, 'mensagens');
         
         // Variável para armazenar o estado da resposta parcial
         let streamingMessage: Message = { role: 'assistant', content: '' };
@@ -516,7 +533,8 @@ const Chat = () => {
           },
           // Parâmetros adicionais
           undefined,  // threadName é undefined para conversas existentes
-          {}  // memory_config vazio
+          {},         // memory_config vazio
+          messageHistory  // ✅ HISTÓRICO COMPLETO: todas as mensagens anteriores
         );
       }
     } catch (error) {

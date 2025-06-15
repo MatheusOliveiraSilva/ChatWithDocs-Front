@@ -138,12 +138,16 @@ export interface MemoryConfig {
   [key: string]: any;
 }
 
+// ✅ ATUALIZADO: Interface que corresponde exatamente ao formato esperado pelo backend
+export interface ChatMessage {
+  role: string;  // "user", "assistant", "system"
+  content: string;
+}
+
 export interface AgentRequest {
+  messages: ChatMessage[];  // ✅ MUDANÇA: Lista de ChatMessage ao invés de input simples
   thread_id: string;
-  input: string;
-  thread_name?: string;
-  llm_config: LLMConfig;
-  memory_config?: MemoryConfig;
+  llm_config?: LLMConfig;   // ✅ MUDANÇA: Opcional conforme o backend
 }
 
 export interface AgentResponse {
@@ -234,7 +238,7 @@ const agentService = {
   
   // Invocar agente com streaming de resposta (adaptado para backend real com LangGraph)
   streamAgent: (
-    _threadId: string, // Backend real não usa thread_id
+    threadId: string, // Thread ID necessário para o backend
     message: string,
     llmConfig: LLMConfig = DEFAULT_LLM_CONFIG,
     onChunk: (chunk: StreamedChunk) => void,
@@ -247,11 +251,12 @@ const agentService = {
     // Adaptar configuração para o formato do backend real
     const adaptedConfig = {
       provider: llmConfig.provider || 'openai',
-      model: llmConfig.model || llmConfig.model_id || 'gpt-4o'
+      model: llmConfig.model || llmConfig.model_id || 'gpt-4o',
+      temperature: llmConfig.temperature || 0.0
     };
     
-    // Construir histórico de mensagens no formato esperado pelo backend real
-    const messages: { role: string; content: string }[] = [];
+    // ✅ CONSTRUIR MENSAGENS: Usar o formato ChatMessage esperado pelo backend
+    const messages: ChatMessage[] = [];
     
     // Adicionar mensagens anteriores se fornecidas (converter formato)
     if (previousMessages && previousMessages.length > 0) {
@@ -263,17 +268,23 @@ const agentService = {
     // Adicionar a nova mensagem do usuário
     messages.push({ role: 'user', content: message });
     
-    // Criar corpo da requisição para o backend real (sem thread_id)
-    const body = JSON.stringify({
+    // ✅ CRIAR REQUISIÇÃO: Usar o formato AgentRequest correto
+    const agentRequest: AgentRequest = {
       messages: messages,
+      thread_id: threadId,
       llm_config: adaptedConfig
-    });
+    };
+    
+    const body = JSON.stringify(agentRequest);
     
     console.log(`Iniciando streaming LangGraph:`, {
+      threadId,
       threadName,
       provider: adaptedConfig.provider,
       model: adaptedConfig.model,
-      messagesCount: messages.length
+      temperature: adaptedConfig.temperature,
+      messagesCount: messages.length,
+      request: agentRequest // ✅ ADICIONADO: Log da requisição completa
     });
     
     // Conectar ao endpoint correto do backend real

@@ -1,3 +1,86 @@
+# Changelog
+
+## [2024-01-XX] - Conversation History Fix
+
+### Fixed
+- **CRITICAL**: Fixed conversation history not being sent to AI agent
+  - Updated `Chat.tsx` to pass complete message history to `streamAgent` calls
+  - Modified `agentService.ts` to use exact backend format with `ChatMessage` interface
+  - Agent requests now include `messages: ChatMessage[]` with `role` and `content` fields
+  - Conversation context is now properly maintained across messages
+  - Fixed both new conversation and existing conversation flows
+
+### Changed
+- Updated `AgentRequest` interface to match backend schema exactly:
+  ```typescript
+  interface ChatMessage {
+    role: string;  // "user", "assistant", "system"
+    content: string;
+  }
+  
+  interface AgentRequest {
+    messages: ChatMessage[];
+    thread_id: string;
+    llm_config?: LLMConfig;
+  }
+  ```
+- Enhanced logging to show complete request structure for debugging
+
+### Technical Details
+- Previous messages are filtered to exclude 'thought' type messages before sending to backend
+- Message history is converted from `[role, content]` tuples to `{role, content}` objects
+- New conversations start with empty history, existing conversations include full context
+- Backend now receives proper conversation context for contextual responses
+
+## [2024-01-XX] - Revolutionary Document Processing Architecture
+
+### Changed
+- **REVOLUTIONARY**: Complete frontend simplification - backend now handles ALL document intelligence
+- Frontend only sends raw files, backend handles:
+  - File type detection and validation
+  - Content extraction (PDF, DOCX, TXT, etc.)
+  - Metadata generation
+  - Text chunking with RecursiveCharacterTextSplitter
+  - Vector embedding creation with OpenAI embeddings
+  - Document storage and indexing
+
+### Updated Services
+- `documentService.ts`: Completely refactored to send raw files
+  - `uploadFile()`: Sends FormData with raw file to `/documents/upload-file`
+  - `uploadText()`: Sends JSON with text to `/documents/upload-text`
+  - Removed all content processing, metadata generation, and vector creation
+  - File upload reduced from 50+ lines to 3 lines of code
+
+### Benefits
+- **Separation of Concerns**: Frontend focuses on UI, backend on document intelligence
+- **Consistency**: All documents processed with same chunking strategy
+- **Performance**: No client-side processing overhead
+- **Reliability**: Professional document processing with LangChain tools
+- **Maintainability**: Single source of truth for document processing logic
+
+## [2024-01-XX] - Agent Service Backend Integration
+
+### Fixed
+- Fixed 422 errors by adding missing `thread_id` field to agent requests
+- Updated request format to match backend schema exactly
+- Added `temperature` to `llm_config` object
+
+### Changed
+- Agent requests now include proper `thread_id` and `llm_config` format
+- Enhanced error handling and logging for debugging
+
+## [2024-01-XX] - Markdown Rendering Fix
+
+### Fixed
+- Fixed markdown rendering where literal `\n` and `**` were displaying instead of formatted text
+- Added string unescaping in `agentService.ts` `convertPythonToJson` function
+- Removed `white-space: pre-wrap` from CSS to ensure ReactMarkdown renders properly
+
+### Technical Details
+- Python string literals like `\\n` are now converted to actual newlines
+- Markdown formatting like `**bold**` now renders as **bold** instead of literal text
+- ReactMarkdown component now receives properly formatted strings
+
 # Changelog - Revolução: Upload de Arquivo Bruto
 
 ## [2024-01-XX] - REVOLUÇÃO: Frontend Envia Arquivo Bruto 🚀
