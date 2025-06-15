@@ -1,0 +1,60 @@
+/* Styles for authentication callback page - Dark theme */
+.callback-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #121212;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.callback-card {
+  background: #1e1e1e;
+  border-radius: 12px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.callback-error {
+  color: #FC8181;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.callback-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.callback-loading p {
+  color: #A0AEC0;
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Spinner animation */
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #4FD1C5;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+} 

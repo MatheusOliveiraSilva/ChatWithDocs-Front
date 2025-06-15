@@ -1,0 +1,93 @@
+.document-progress-container {
+  margin: 8px 0;
+  width: 100%;
+}
+
+.document-progress-bar {
+  height: 8px;
+  background-color: rgba(59, 130, 246, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.document-progress-fill {
+  height: 100%;
+  background-color: #3b82f6;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.document-progress-text {
+  font-size: 12px;
+  color: #94a3b8;
+  text-align: right;
+}
+
+/* Estilo para o indicador de aguardando indexação */
+.document-progress-waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.document-progress-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  border-radius: 50%;
+  border-top-color: #3b82f6;
+  animation: document-spinner-rotate 1s linear infinite;
+}
+
+@keyframes document-spinner-rotate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  .document-progress-bar {
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+  
+  .document-progress-fill {
+    background-color: #60a5fa;
+  }
+  
+  .document-progress-text {
+    color: #cbd5e1;
+  }
+
+  .document-progress-waiting {
+    color: #94a3b8;
+  }
+}
+
+/* Light mode */
+@media (prefers-color-scheme: light) {
+  .document-progress-bar {
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  
+  .document-progress-fill {
+    background-color: #3b82f6;
+  }
+  
+  .document-progress-text {
+    color: #64748b;
+  }
+
+  .document-progress-waiting {
+    color: #64748b;
+  }
+} 
