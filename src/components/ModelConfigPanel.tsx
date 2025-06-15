@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LLMConfig, ReasoningEffort, AVAILABLE_MODELS, DEFAULT_LLM_CONFIG } from '../services/agentService';
+import { LLMConfig, AVAILABLE_MODELS, DEFAULT_LLM_CONFIG } from '../services/agentService';
 import '../styles/ModelConfigPanel.css';
 
 interface ModelConfigPanelProps {
@@ -22,106 +22,13 @@ const ModelConfigPanel = ({
     setConfig(llmConfig);
   }, [llmConfig]);
   
-  // Determine if reasoning effort should be enabled
-  const isReasoningEffortEnabled = () => {
-    return config.provider === 'openai' && 
-           (config.model_id === 'o3-mini' || config.model_id === 'o1');
-  };
-  
-  // Determine if think mode should be enabled
-  const isThinkModeEnabled = () => {
-    return config.provider === 'anthropic' && 
-           config.model_id === 'claude-3-7-sonnet';
-  };
-  
-  // Determine if temperature should be fixed
-  const isTemperatureFixed = () => {
-    return config.model_id === 'o1' || 
-           config.model_id === 'o3-mini' || 
-           (config.model_id === 'claude-3-7-sonnet' && config.think_mode);
-  };
-  
-  // Handle provider change
-  const handleProviderChange = (provider: string) => {
-    // When provider changes, select the first model from that provider
-    const newModelId = AVAILABLE_MODELS[provider as keyof typeof AVAILABLE_MODELS][0].id;
-    
-    // Create new configuration
-    let newConfig: LLMConfig = { ...config, provider, model_id: newModelId };
-    
-    // Apply default values based on model
-    if (provider === 'openai') {
-      if (newModelId !== 'o3-mini' && newModelId !== 'o1') {
-        newConfig.reasoning_effort = 'low';
-      }
-      // When switching to OpenAI, think_mode should be false
-      newConfig.think_mode = false;
-    }
-    
-    // Set fixed temperature for specific models
-    if (newModelId === 'o1' || newModelId === 'o3-mini' || newModelId === 'claude-3-7-sonnet') {
-      newConfig.temperature = 1.0;
-    }
-    
-    setConfig(newConfig);
-    onConfigChange(newConfig);
-  };
-  
   // Handle model change
   const handleModelChange = (modelId: string) => {
-    let newConfig: LLMConfig = { ...config, model_id: modelId };
-    
-    // Apply default values based on model
-    if (config.provider === 'openai') {
-      if (modelId !== 'o3-mini' && modelId !== 'o1') {
-        newConfig.reasoning_effort = 'low';
-      }
-    }
-    
-    if (config.provider === 'anthropic') {
-      if (modelId !== 'claude-3-7-sonnet') {
-        newConfig.think_mode = false;
-      }
-    }
-    
-    // Set fixed temperature for specific models
-    if (modelId === 'o1' || modelId === 'o3-mini') {
-      newConfig.temperature = 1.0;
-    } else if (modelId === 'claude-3-7-sonnet' && newConfig.think_mode) {
-      // Temperature fixed at 1.0 for Claude Sonnet with think_mode
-      newConfig.temperature = 1.0;
-    } else if (!isTemperatureFixed() && newConfig.temperature === 1.0) {
-      // Reset temperature to default if it was previously fixed
-      newConfig.temperature = DEFAULT_LLM_CONFIG.temperature;
-    }
-    
-    setConfig(newConfig);
-    onConfigChange(newConfig);
-  };
-  
-  // Handle reasoning effort change
-  const handleReasoningEffortChange = (effort: ReasoningEffort) => {
-    // Only allow changes if reasoning effort is enabled
-    if (!isReasoningEffortEnabled()) return;
-    
-    const newConfig = { ...config, reasoning_effort: effort };
-    setConfig(newConfig);
-    onConfigChange(newConfig);
-  };
-  
-  // Handle think mode toggle
-  const handleThinkModeToggle = () => {
-    // Only allow changes if think mode is enabled
-    if (!isThinkModeEnabled()) return;
-    
-    const newThinkMode = !config.think_mode;
-    let newConfig = { ...config, think_mode: newThinkMode };
-    
-    // Se o modelo é Claude Sonnet e o think_mode está sendo ativado,
-    // fixe a temperatura em 1.0
-    if (config.model_id === 'claude-3-7-sonnet' && newThinkMode) {
-      newConfig.temperature = 1.0;
-    }
+    const newConfig: LLMConfig = { 
+      ...config, 
+      model_id: modelId,
+      model: modelId // Ensure both fields are set
+    };
     
     setConfig(newConfig);
     onConfigChange(newConfig);
@@ -129,9 +36,6 @@ const ModelConfigPanel = ({
   
   // Handle temperature change
   const handleTemperatureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Do not allow temperature changes for fixed models
-    if (isTemperatureFixed()) return;
-    
     const temperature = parseFloat(e.target.value);
     const newConfig = { ...config, temperature };
     setConfig(newConfig);
@@ -140,13 +44,7 @@ const ModelConfigPanel = ({
   
   // Handle reset to defaults
   const handleResetDefaults = () => {
-    let newConfig = { ...DEFAULT_LLM_CONFIG };
-    
-    // Ensure fixed temperature for specific models
-    if (isTemperatureFixed()) {
-      newConfig.temperature = 1.0;
-    }
-    
+    const newConfig = { ...DEFAULT_LLM_CONFIG };
     setConfig(newConfig);
     onConfigChange(newConfig);
   };
@@ -163,30 +61,19 @@ const ModelConfigPanel = ({
       <div className={`model-config-content ${isExpanded ? 'expanded' : ''}`}>
         <div className="config-section">
           <label>Provider</label>
-          <div className="provider-buttons">
-            <button 
-              className={`provider-button ${config.provider === 'openai' ? 'active' : ''}`}
-              onClick={() => handleProviderChange('openai')}
-            >
-              OpenAI
-            </button>
-            <button 
-              className={`provider-button ${config.provider === 'anthropic' ? 'active' : ''}`}
-              onClick={() => handleProviderChange('anthropic')}
-            >
-              Anthropic
-            </button>
+          <div className="provider-info">
+            <span className="provider-badge">OpenAI</span>
           </div>
         </div>
         
         <div className="config-section">
           <label>Model</label>
           <select 
-            value={config.model_id} 
+            value={config.model_id || config.model} 
             onChange={(e) => handleModelChange(e.target.value)}
             className="model-select"
           >
-            {AVAILABLE_MODELS[config.provider as keyof typeof AVAILABLE_MODELS].map(model => (
+            {AVAILABLE_MODELS.openai.map(model => (
               <option key={model.id} value={model.id}>
                 {model.name}
               </option>
@@ -194,68 +81,18 @@ const ModelConfigPanel = ({
           </select>
         </div>
         
-        {config.provider === 'openai' && (
-          <div className="config-section">
-            <label>Reasoning Effort</label>
-            <div className={`reasoning-buttons ${!isReasoningEffortEnabled() ? 'disabled' : ''}`}>
-              <button 
-                className={`reasoning-button ${config.reasoning_effort === 'low' ? 'active' : ''}`}
-                onClick={() => handleReasoningEffortChange('low')}
-                disabled={!isReasoningEffortEnabled()}
-              >
-                Low
-              </button>
-              <button 
-                className={`reasoning-button ${config.reasoning_effort === 'medium' ? 'active' : ''}`}
-                onClick={() => handleReasoningEffortChange('medium')}
-                disabled={!isReasoningEffortEnabled()}
-              >
-                Medium
-              </button>
-              <button 
-                className={`reasoning-button ${config.reasoning_effort === 'high' ? 'active' : ''}`}
-                onClick={() => handleReasoningEffortChange('high')}
-                disabled={!isReasoningEffortEnabled()}
-              >
-                High
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {config.provider === 'anthropic' && (
-          <div className="config-section">
-            <label>Think Mode</label>
-            <div className={`toggle-switch ${!isThinkModeEnabled() ? 'disabled' : ''}`}>
-              <input 
-                type="checkbox" 
-                id="think-mode" 
-                checked={config.think_mode} 
-                onChange={handleThinkModeToggle}
-                disabled={!isThinkModeEnabled()}
-              />
-              <label htmlFor="think-mode" className="toggle-label"></label>
-            </div>
-          </div>
-        )}
-        
         <div className="config-section">
           <label>
-            Temperature: {isTemperatureFixed() 
-              ? config.model_id === 'claude-3-7-sonnet' && config.think_mode 
-                ? '1.0 (Fixo para Think Mode)' 
-                : '1.0 (Fixo)' 
-              : config.temperature?.toFixed(1)}
+            Temperature: {config.temperature?.toFixed(1)}
           </label>
           <input 
             type="range" 
             min="0" 
             max="1" 
             step="0.1" 
-            value={isTemperatureFixed() ? 1.0 : config.temperature} 
+            value={config.temperature || 0.7} 
             onChange={handleTemperatureChange}
-            className={`temperature-slider ${isTemperatureFixed() ? 'disabled' : ''}`}
-            disabled={isTemperatureFixed()}
+            className="temperature-slider"
           />
           <div className="slider-labels">
             <span>Precise</span>

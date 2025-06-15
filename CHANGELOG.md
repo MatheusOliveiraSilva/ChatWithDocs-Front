@@ -1,5 +1,32 @@
 # Changelog
 
+## [2024-01-XX] - Final Cleanup: Simplified Model Configuration
+
+### Removed
+- **Anthropic provider**: Removed Claude models and Anthropic integration
+- **Reasoning effort**: Removed low/medium/high reasoning effort options
+- **GPT-4**: Removed legacy GPT-4 model, keeping only GPT-4o variants
+- **Think mode**: Removed Anthropic-specific think mode toggle
+
+### Changed
+- **Model selection**: Now only supports OpenAI GPT-4o and GPT-4o Mini
+- **Provider display**: Changed from selectable buttons to static "OpenAI" badge
+- **Configuration panel**: Simplified to show only Model and Temperature controls
+- **Interface cleanup**: Removed complex conditional logic for different providers
+
+### Technical Details
+- Updated `LLMConfig` interface to remove `reasoning_effort` and `think_mode`
+- Simplified `AVAILABLE_MODELS` to only include OpenAI models
+- Refactored `ModelConfigPanel.tsx` to remove provider switching logic
+- Updated CSS to remove styles for removed features
+- Added `provider-badge` styling for static OpenAI display
+
+### Benefits
+- **Simplified UX**: Users no longer confused by multiple provider options
+- **Reduced complexity**: Eliminated conditional logic for different providers
+- **Focused experience**: Clear focus on OpenAI's most capable models
+- **Easier maintenance**: Less code to maintain and test
+
 ## [2024-01-XX] - Conversation History Fix
 
 ### Fixed

@@ -67,34 +67,20 @@
   font-weight: 500;
 }
 
-/* Provider buttons */
-.provider-buttons {
+/* Provider info badge */
+.provider-info {
   display: flex;
-  gap: 10px;
+  align-items: center;
 }
 
-.provider-button {
-  flex: 1;
-  background-color: #2d3748;
-  color: #e2e8f0;
-  border: 1px solid #3e4247;
-  padding: 8px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.9rem;
-}
-
-.provider-button.active {
+.provider-badge {
   background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 100%);
   color: #1a202c;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
   font-weight: 600;
-  border: none;
-}
-
-.provider-button:hover:not(.active) {
-  background-color: #3a4a63;
-  border-color: #4a5568;
+  display: inline-block;
 }
 
 /* Model select */
@@ -118,137 +104,26 @@
   border-color: #4fd1c5;
 }
 
-/* Reasoning buttons */
-.reasoning-buttons {
-  display: flex;
-  gap: 5px;
-}
-
-.reasoning-buttons.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.reasoning-button {
-  flex: 1;
-  background-color: #2d3748;
-  color: #e2e8f0;
-  border: 1px solid #3e4247;
-  padding: 8px 0;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-size: 0.85rem;
-}
-
-.reasoning-button:disabled {
-  cursor: not-allowed;
-}
-
-.reasoning-button.active {
-  background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 100%);
-  color: #1a202c;
-  font-weight: 600;
-  border: none;
-}
-
-.reasoning-button:hover:not(.active):not(:disabled) {
-  background-color: #3a4a63;
-  border-color: #4a5568;
-}
-
-/* Toggle switch para Think Mode */
-.toggle-switch {
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 24px;
-}
-
-.toggle-switch.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.toggle-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-switch input:disabled + .toggle-label {
-  cursor: not-allowed;
-}
-
-.toggle-label {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #2d3748;
-  border: 1px solid #3e4247;
-  transition: .4s;
-  border-radius: 24px;
-}
-
-.toggle-label:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 2px;
-  background-color: #cbd5e0;
-  transition: .4s;
-  border-radius: 50%;
-}
-
-input:checked + .toggle-label {
-  background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 100%);
-  border: none;
-}
-
-input:checked + .toggle-label:before {
-  background-color: #fff;
-  transform: translateX(23px);
-}
-
-input:focus + .toggle-label {
-  box-shadow: 0 0 1px #4fd1c5;
-}
-
-/* Controle deslizante de temperatura */
+/* Temperature slider */
 .temperature-slider {
-  -webkit-appearance: none;
   width: 100%;
   height: 6px;
-  border-radius: 5px;
+  border-radius: 3px;
   background: #2d3748;
   outline: none;
-  margin: 10px 0;
-}
-
-.temperature-slider.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 100%);
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
 }
 
 .temperature-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
   appearance: none;
   width: 18px;
   height: 18px;
   border-radius: 50%;
   background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 100%);
   cursor: pointer;
-  border: 2px solid #1a1a1a;
-}
-
-.temperature-slider:disabled::-webkit-slider-thumb {
-  cursor: not-allowed;
+  border: 2px solid #1a202c;
 }
 
 .temperature-slider::-moz-range-thumb {
@@ -257,19 +132,15 @@ input:focus + .toggle-label {
   border-radius: 50%;
   background: linear-gradient(135deg, #4fd1c5 0%, #63b3ed 100%);
   cursor: pointer;
-  border: 2px solid #1a1a1a;
-}
-
-.temperature-slider:disabled::-moz-range-thumb {
-  cursor: not-allowed;
+  border: 2px solid #1a202c;
 }
 
 .slider-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 0.8rem;
-  color: #a0aec0;
   margin-top: 5px;
+  font-size: 0.8rem;
+  color: #718096;
 }
 
 /* Reset button */
@@ -278,9 +149,8 @@ input:focus + .toggle-label {
   background-color: #2d3748;
   color: #e2e8f0;
   border: 1px solid #3e4247;
+  padding: 10px;
   border-radius: 6px;
-  padding: 8px 12px;
-  margin-top: 10px;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 0.9rem;
@@ -291,17 +161,14 @@ input:focus + .toggle-label {
   border-color: #4a5568;
 }
 
-/* Responsive styles */
 @media (max-width: 768px) {
   .model-config-content {
-    padding: 10px;
+    padding: 12px;
   }
   
-  .provider-button, 
-  .reasoning-button, 
+  .provider-badge,
   .model-select,
   .reset-button {
-    padding: 6px 10px;
     font-size: 0.85rem;
   }
 } 

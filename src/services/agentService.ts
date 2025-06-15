@@ -123,14 +123,10 @@ const convertPythonToJson = (pythonStr: string): string => {
 };
 
 // Types
-export type ReasoningEffort = 'low' | 'medium' | 'high';
-
 export interface LLMConfig {
   model_id?: string;
   provider: string;
   model: string; // Campo usado pelo novo backend
-  reasoning_effort?: ReasoningEffort;
-  think_mode?: boolean;
   temperature?: number;
 }
 
@@ -172,17 +168,11 @@ export interface StreamedChunk {
   };
 }
 
-// Available models by provider
+// Available models by provider - apenas OpenAI com 4o e 4o-mini
 export const AVAILABLE_MODELS = {
-  azure: [
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'gpt-4', name: 'GPT-4' },
-  ],
   openai: [
     { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' },
-    { id: 'gpt-4', name: 'GPT-4' },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
   ]
 };
 
